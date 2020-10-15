@@ -20,3 +20,5 @@ matplotlibrc
 *.pckl
 *.pkl
 *.swp
+
+venv/
