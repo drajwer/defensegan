@@ -196,5 +196,5 @@ if __name__ == '__main__':
     download_celeb_a('./data')
   if 'mnist' in args.datasets:
     download_mnist('./data')
-  if 'fmnist' in args.datasets:
+  if 'f-mnist' in args.datasets:
     download_fmnist('./data')
