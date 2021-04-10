@@ -264,6 +264,10 @@ def get_celeba(data_path, test_on_dev=True, orig_data=False):
     else:
         train_images, train_labels = get_pickeldb('train')
         test_images, test_labels = get_pickeldb(dev_name)
+    
+    # train_images = train_images[0:len(train_images)] / 255.0
+    # test_images = test_images[0:len(test_images)] / 255.0
+
 
     return train_images, convert_to_onehot(train_labels), test_images, \
            convert_to_onehot(test_labels)
@@ -459,6 +463,7 @@ def blackbox(gan, rec_data_path=None, batch_size=128,
                            FLAGS.image_dim[0]]
 
     images_tensor = tf.placeholder(tf.float32, shape=[None] + x_shape)
+    # images_tensor = images_tensor / tf.constant(255.0)
     labels_tensor = tf.placeholder(tf.float32, shape=(None, classes))
 
     rng = np.random.RandomState([11, 24, 1990])
@@ -521,12 +526,11 @@ def blackbox(gan, rec_data_path=None, batch_size=128,
     accuracies['sub'] = 0
     # Initialize the Fast Gradient Sign Method (FGSM) attack object.
     fgsm_par = {
-        'eps': FLAGS.fgsm_eps, 'ord': np.inf, 'clip_min': 0., 'clip_max': 1.
+        'eps': FLAGS.fgsm_eps, 'ord': np.inf #, 'clip_min': 0., 'clip_max': 10000.
     }
     if gan:
         if gan.dataset_name == 'celeba':
-            fgsm_par['clip_min'] = -1.0
-
+            fgsm_par['clip_min'] = -10000.0
     fgsm = FastGradientMethod(model_sub, sess=sess)
 
     # Craft adversarial examples using the substitute.
