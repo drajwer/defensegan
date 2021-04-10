@@ -76,7 +76,7 @@ class LazyDataset(object):
     """
 
     def __init__(self, filepaths, center_crop_dim, resize_size,
-                 transform_type=None):
+                 transform_type=None, scale_rgb_to_normal=False):
         """LazyDataset constructor.
 
         Args:
@@ -89,6 +89,7 @@ class LazyDataset(object):
         self.center_crop_dim = center_crop_dim
         self.resize_size = resize_size
         self.transform_type = transform_type
+        self.scale_rgb_to_normal = scale_rgb_to_normal
 
     def _get_image(self, image_path):
         """Retrieves an image at a given path and resizes it to the
@@ -109,7 +110,8 @@ class LazyDataset(object):
                               self.center_crop_dim,
                               resize_height=self.resize_size,
                               resize_width=self.resize_size,
-                              is_crop=True)
+                              is_crop=True,
+                              scale_rgb_to_normal=self.scale_rgb_to_normal)
 
     def __len__(self):
         """Gives the number of images in the dataset.
@@ -188,7 +190,7 @@ class PickleLazyDataset(LazyDataset):
     (of typically generated images) on disk without loading them.
     """
 
-    def __init__(self, filepaths, shape=None):
+    def __init__(self, filepaths, shape=None, scale_rgb_to_normal=False):
         """The constructor for instances of this class.
 
         Args:
@@ -198,6 +200,7 @@ class PickleLazyDataset(LazyDataset):
         """
         self.filepaths = filepaths
         self.image_shape = shape
+        self.scale_rgb_to_normal = scale_rgb_to_normal
 
     def __len__(self):
         return len(self.filepaths)
@@ -213,7 +216,7 @@ class PickleLazyDataset(LazyDataset):
 
 
 def _prepare_image(image, crop_height, crop_width, resize_height=64,
-                   resize_width=64, is_crop=True):
+                   resize_width=64, is_crop=True, scale_rgb_to_normal=False):
     """Prepares an image by first applying an optional center
     crop, then resizing it.
 
@@ -258,4 +261,5 @@ def _prepare_image(image, crop_height, crop_width, resize_height=64,
     else:
         cropped_image = scipy.misc.imresize(image, [resize_height,
                                                     resize_width])
-    return cropped_image
+    
+    return cropped_image / 255.0 if scale_rgb_to_normal else cropped_image
