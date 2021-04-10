@@ -1,0 +1,29 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Current File",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "args": [
+                "--cfg", "output/gans/celeba-1",
+                "--results_dir", "celeba-1-15",
+                "--bb_model", "A",
+                "--sub_model", "B",
+                "--fgsm_eps", "0.0",
+                "--defense_type", "defense_gan",
+                "--debug", "True", 
+                "--debug_dir", "debug/blackbox-celeba-1-15",
+                "--nb_epochs", "1",
+                "--nb_epochs_s", "1", 
+                "--data_aug", "1"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": false
+        }
+    ]
+}
