@@ -36,6 +36,9 @@ import tensorflow as tf
 from blackbox import dataset_gan_dict, get_cached_gan_data
 from cleverhans.attacks import CarliniWagnerL2
 from cleverhans.attacks import FastGradientMethod
+from cleverhans.attacks import MomentumIterativeMethod
+from cleverhans.attacks import DeepFool
+from cleverhans.attacks import LBFGS
 from cleverhans.utils import AccuracyReport
 from cleverhans.utils import set_log_level
 from cleverhans.utils_tf import model_train, model_eval
@@ -207,6 +210,16 @@ def whitebox(gan, rec_data_path=None, batch_size=128, learning_rate=0.001,
                          'batch_size': batch_size,
                          'initial_const': 100,
                          'feed': {K.learning_phase(): 0}}
+    elif FLAGS.attack_type == 'mim':
+        attack_obj = MomentumIterativeMethod(model, back='tf', sess=sess)
+        attack_params = {'eps': eps, 'ord': np.inf, 'clip_min': min_val, 'clip_max': 1.}
+    elif FLAGS.attack_type == 'deepfool':
+        attack_obj = DeepFool(model, back='tf', sess=sess)
+        attack_params = {'eps': eps, 'clip_min': min_val, 'clip_max': 1., 'nb_candidate': 2, 'nb_classes': 2}
+    elif FLAGS.attack_type == 'lbfgs':
+        attack_obj = LBFGS(model, back='tf', sess=sess)
+        attack_params = {'clip_min': min_val, 'clip_max': 1.}
+
     adv_x = attack_obj.generate(images_pl, **attack_params)
 
     eval_par = {'batch_size': batch_size}
@@ -222,15 +235,48 @@ def whitebox(gan, rec_data_path=None, batch_size=128, learning_rate=0.001,
             feed={K.learning_phase(): 0}, diff_op=diff_op,
         )
         print('Test accuracy on adversarial examples: %0.4f\n' % acc_adv)
-        return acc_adv, 0, roc_info
     else:
         preds_adv = model(adv_x)
+        roc_info = None
         acc_adv = model_eval(sess, images_pl, labels_pl, preds_adv, test_images, test_labels,
                              args=eval_par,
                              feed={K.learning_phase(): 0})
         print('Test accuracy on adversarial examples: %0.4f\n' % acc_adv)
 
-        return acc_adv, 0, None
+    if FLAGS.debug and gan is not None:  # To see some qualitative results.
+        adv_x_debug = adv_x[:batch_size]
+        images_pl_debug = images_pl[:batch_size]
+
+        debug_dir = os.path.join('debug', 'whitebox', FLAGS.debug_dir)
+        ensure_dir(debug_dir)
+
+        reconstructed_tensors = gan.reconstruct(adv_x_debug, batch_size=batch_size,
+                                                reconstructor_id=2)
+
+        x_rec_orig = gan.reconstruct(images_tensor, batch_size=batch_size,
+                                     reconstructor_id=3)
+        x_adv_sub_val = sess.run(x_adv_sub,
+                                 feed_dict={images_tensor: images_pl_debug,
+                                            K.learning_phase(): 0})
+        sess.run(tf.local_variables_initializer())
+        x_rec_debug_val, x_rec_orig_val = sess.run(
+            [reconstructed_tensors, x_rec_orig],
+            feed_dict={
+                images_tensor: images_pl_debug,
+                K.learning_phase(): 0})
+
+        save_images_files(x_adv_sub_val, output_dir=debug_dir,
+                          postfix='adv')
+
+        postfix = 'gen_rec'
+        save_images_files(x_rec_debug_val, output_dir=debug_dir,
+                          postfix=postfix)
+        save_images_files(images_pl_debug, output_dir=debug_dir,
+                          postfix='orig')
+        save_images_files(x_rec_orig_val, output_dir=debug_dir,
+                          postfix='orig_rec')
+
+    return acc_adv, 0, roc_info
 
 
 import re
@@ -376,7 +422,7 @@ if __name__ == '__main__':
     flags.DEFINE_boolean("online_training", False,
                          "Train the base classifier on reconstructions.")
     flags.DEFINE_string("defense_type", "none", "Type of defense [none|defense_gan|adv_tr]")
-    flags.DEFINE_string("attack_type", "none", "Type of attack [fgsm|cw|rand_fgsm]")
+    flags.DEFINE_string("attack_type", "none", "Type of attack [fgsm|cw|rand_fgsm|mim|deepfool|lbgfs]")
     flags.DEFINE_string("results_dir", None, "The final subdirectory of the results.")
     flags.DEFINE_boolean("same_init", False, "Same initialization for z_hats.")
     flags.DEFINE_string("model", "F", "The classifier model.")
