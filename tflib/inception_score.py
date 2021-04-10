@@ -1,4 +1,3 @@
-# From https://github.com/openai/improved-gan/blob/master/inception_score/model.py
 # Code derived from tensorflow/tensorflow/models/image/imagenet/classify_image.py
 from __future__ import absolute_import
 from __future__ import division
@@ -23,7 +22,7 @@ softmax = None
 # Call this function with list of images. Each of elements should be a 
 # numpy array with values ranging from 0 to 255.
 def get_inception_score(images, splits=10):
-  assert(type(images) == list)
+  # assert(type(images) == list)
   assert(type(images[0]) == np.ndarray)
   assert(len(images[0].shape) == 3)
   assert(np.max(images[0]) > 10)
@@ -32,16 +31,13 @@ def get_inception_score(images, splits=10):
   for img in images:
     img = img.astype(np.float32)
     inps.append(np.expand_dims(img, 0))
-  bs = 100
-
-  config = tf.ConfigProto(allow_soft_placement=True)
-  config.gpu_options.allow_growth = True
-  with tf.Session(config=config) as sess:
+  bs = 1
+  with tf.Session() as sess:
     preds = []
     n_batches = int(math.ceil(float(len(inps)) / float(bs)))
     for i in range(n_batches):
-        # sys.stdout.write(".")
-        # sys.stdout.flush()
+        sys.stdout.write(".")
+        sys.stdout.flush()
         inp = inps[(i * bs):min((i + 1) * bs, len(inps))]
         inp = np.concatenate(inp, 0)
         pred = sess.run(softmax, {'ExpandDims:0': inp})
@@ -78,9 +74,7 @@ def _init_inception():
     graph_def.ParseFromString(f.read())
     _ = tf.import_graph_def(graph_def, name='')
   # Works with an arbitrary minibatch size.
-  config = tf.ConfigProto(allow_soft_placement=True)
-  config.gpu_options.allow_growth = True
-  with tf.Session(config=config) as sess:
+  with tf.Session() as sess:
     pool3 = sess.graph.get_tensor_by_name('pool_3:0')
     ops = pool3.graph.get_operations()
     for op_idx, op in enumerate(ops):
@@ -93,9 +87,9 @@ def _init_inception():
                     new_shape.append(None)
                 else:
                     new_shape.append(s)
-            o._shape = tf.TensorShape(new_shape)
+            o.set_shape(tf.TensorShape(new_shape))
     w = sess.graph.get_operation_by_name("softmax/logits/MatMul").inputs[1]
-    logits = tf.matmul(tf.squeeze(pool3), w)
+    logits = tf.matmul(tf.squeeze(pool3, [1, 2]), w)
     softmax = tf.nn.softmax(logits)
 
 if softmax is None:
