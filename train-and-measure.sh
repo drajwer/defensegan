@@ -61,24 +61,23 @@ source venv/bin/activate
 
 
 
-sets=(celeba)
+sets=(celeba, fmnist, mnist)
 for set in ${sets[*]};
 do
     echo "Start training on $set."
-    for i in $(seq 57 64);
+    for i in $(seq 1 100);
     do
         mkdir -p debug3/gans/$set/$i
         mkdir -p debug3/debug/gans/$set/$i
         mv debug/gans/$set/* debug3/gans/$set/$i/
         mv debug/debug/gans/$set/* debug3/debug/gans/$set/$i/
         echo "Running $i turn of training."
-        timeout 30m python train.py --cfg experiments/cfgs/gans/$set.yml --is_train
-        python measure_gan.py --cfg output/gans/celeba --results_dir train_and_measure_gan --probe_size 20000 --iter $i
+        timeout 30m python train.py --cfg experiments/cfgs/gans/$set-measure_gan.yml --is_train
+        python measure_gan.py --cfg output/gans/$set-measure --results_dir train_and_measure_gan --probe_size 20000 --iter $i
         echo "Finished $i turn of training."
-        sleep 10m;
 
     done
-    i=5
+    i=100
     mkdir -p debug3/gans/$set/$i
     mkdir -p debug3/debug/gans/$set/$i
     mv debug/gans/$set/* debug3/gans/$set/$i/

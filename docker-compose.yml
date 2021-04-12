@@ -1,0 +1,17 @@
+version: "3.9"  # optional since v1.27.0
+services:
+  defensegan:
+    build: .
+    image: drejerk/defensegan
+    volumes:
+      - .:/defensegan
+    deploy:
+      resources:
+        limits:
+          cpus: '16.0'
+        reservations:
+          devices:
+          - driver: nvidia
+            count: 2
+            capabilities: [gpu, utility]
+            
