@@ -47,6 +47,7 @@ from utils.config import load_config
 from utils.gan_defense import model_eval_gan
 from utils.misc import ensure_dir
 from utils.network_builder import model_a, model_b, model_c, model_d, model_e, model_f
+from utils.visualize import save_images_files
 
 ds_gan = {
     'mnist': MnistDefenseGAN,
@@ -212,7 +213,7 @@ def whitebox(gan, rec_data_path=None, batch_size=128, learning_rate=0.001,
                          'feed': {K.learning_phase(): 0}}
     elif FLAGS.attack_type == 'mim':
         attack_obj = MomentumIterativeMethod(model, back='tf', sess=sess)
-        attack_params = {'eps': eps, 'ord': np.inf, 'clip_min': min_val, 'clip_max': 1.}
+        attack_params = {'eps': eps, 'ord': np.inf, 'clip_min': min_val, 'clip_max': 1., 'nb_iter': FLAGS.nb_attack_iters}
     elif FLAGS.attack_type == 'deepfool':
         attack_obj = DeepFool(model, back='tf', sess=sess)
         attack_params = {'eps': eps, 'clip_min': min_val, 'clip_max': 1., 'nb_candidate': 2, 'nb_classes': 2}
@@ -223,7 +224,7 @@ def whitebox(gan, rec_data_path=None, batch_size=128, learning_rate=0.001,
     adv_x = attack_obj.generate(images_pl, **attack_params)
 
     eval_par = {'batch_size': batch_size}
-    if FLAGS.defense_type == 'defense_gan':
+    if not FLAGS.debug and FLAGS.defense_type == 'defense_gan':
         preds_adv = model.get_probs(adv_x)
 
         num_dims = len(images_pl.get_shape())
@@ -235,7 +236,7 @@ def whitebox(gan, rec_data_path=None, batch_size=128, learning_rate=0.001,
             feed={K.learning_phase(): 0}, diff_op=diff_op,
         )
         print('Test accuracy on adversarial examples: %0.4f\n' % acc_adv)
-    else:
+    elif not FLAGS.debug:
         preds_adv = model(adv_x)
         roc_info = None
         acc_adv = model_eval(sess, images_pl, labels_pl, preds_adv, test_images, test_labels,
@@ -244,25 +245,24 @@ def whitebox(gan, rec_data_path=None, batch_size=128, learning_rate=0.001,
         print('Test accuracy on adversarial examples: %0.4f\n' % acc_adv)
 
     if FLAGS.debug and gan is not None:  # To see some qualitative results.
-        adv_x_debug = adv_x[:batch_size]
-        images_pl_debug = images_pl[:batch_size]
+        images_pl_debug = test_images[:batch_size]
 
         debug_dir = os.path.join('debug', 'whitebox', FLAGS.debug_dir)
         ensure_dir(debug_dir)
 
-        reconstructed_tensors = gan.reconstruct(adv_x_debug, batch_size=batch_size,
+        reconstructed_tensors = gan.reconstruct(adv_x, batch_size=batch_size,
                                                 reconstructor_id=2)
 
-        x_rec_orig = gan.reconstruct(images_tensor, batch_size=batch_size,
+        x_rec_orig = gan.reconstruct(images_pl, batch_size=batch_size,
                                      reconstructor_id=3)
-        x_adv_sub_val = sess.run(x_adv_sub,
-                                 feed_dict={images_tensor: images_pl_debug,
+        x_adv_sub_val = sess.run(adv_x,
+                                 feed_dict={images_pl: images_pl_debug,
                                             K.learning_phase(): 0})
         sess.run(tf.local_variables_initializer())
         x_rec_debug_val, x_rec_orig_val = sess.run(
             [reconstructed_tensors, x_rec_orig],
             feed_dict={
-                images_tensor: images_pl_debug,
+                images_pl: images_pl_debug,
                 K.learning_phase(): 0})
 
         save_images_files(x_adv_sub_val, output_dir=debug_dir,
@@ -413,6 +413,7 @@ if __name__ == '__main__':
     flags.DEFINE_integer('nb_classes', 10, 'Number of classes.')
     flags.DEFINE_float('learning_rate', 0.001, 'Learning rate for training.')
     flags.DEFINE_integer('nb_epochs', 10, 'Number of epochs to train model.')
+    flags.DEFINE_integer('nb_attack_iters', 10, 'Number of iterations of attack constructions. Used in e.g. MIM')
     flags.DEFINE_float('lmbda', 0.1, 'Lambda from arxiv.org/abs/1602.02697.')
     flags.DEFINE_float('fgsm_eps', 0.3, 'FGSM epsilon.')
     flags.DEFINE_string('rec_path', None, 'Path to reconstructions.')
