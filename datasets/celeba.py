@@ -25,7 +25,7 @@ from datasets.dataset import Dataset, LazyDataset
 class CelebA(Dataset):
     """CelebA class implementing Dataset."""
 
-    def __init__(self, center_crop_size=108, resize_size=64, attribute=None):
+    def __init__(self, center_crop_size=108, resize_size=64, attribute=None, scale_rgb_to_normal=False):
         """CelebA constructor.
 
         Args:
@@ -41,6 +41,7 @@ class CelebA(Dataset):
         self.split_data = {}
         self.image_size = center_crop_size
         self.resize_size = resize_size
+        self.scale_rgb_to_normal = scale_rgb_to_normal
         # The attribute represents which attribute to use in case of
         # classification.
         self.attribute = attribute
@@ -94,7 +95,7 @@ class CelebA(Dataset):
             np.random.shuffle(fps)
             np.random.set_state(rng_state)
 
-        images = LazyDataset(fps, self.image_size, self.resize_size)
+        images = LazyDataset(fps, self.image_size, self.resize_size, scale_rgb_to_normal=self.scale_rgb_to_normal)
         # Access images if not lazy.
         if not lazy:
             images = images[:len(images)]

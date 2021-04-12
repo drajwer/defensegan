@@ -239,9 +239,9 @@ def get_celeba(data_path, test_on_dev=True, orig_data=False):
     dev_name = 'val'
     if not test_on_dev:
         dev_name = 'test'
-    ds = CelebA(attribute=FLAGS.attribute)
+    ds = CelebA(attribute=FLAGS.attribute, scale_rgb_to_normal=True)
     ds.load()
-    ds_test = CelebA(attribute=FLAGS.attribute)
+    ds_test = CelebA(attribute=FLAGS.attribute, scale_rgb_to_normal=True)
     ds_test.load(split=dev_name)
     train_labels = ds.labels
     test_labels = ds_test.labels
@@ -255,7 +255,7 @@ def get_celeba(data_path, test_on_dev=True, orig_data=False):
             np.int32)
         pkl_paths = [os.path.join(train_data_path, pf) for pf in
                      sorted(pkl_files)]
-        pkl_ds = PickleLazyDataset(pkl_paths, [64, 64, 3])
+        pkl_ds = PickleLazyDataset(pkl_paths, [64, 64, 3], True)
         return pkl_ds, pkl_labels
 
     if orig_data:
