@@ -11,6 +11,7 @@ output
 data
 debug
 debug2
+debug3
 lib/build
 lib/build/*
 matplotlibrc

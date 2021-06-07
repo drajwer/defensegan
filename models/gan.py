@@ -362,7 +362,7 @@ class DefenseGANBase(AbstractModel):
         with tf.variable_scope(tf.get_variable_scope(), reuse=tf.AUTO_REUSE):
             rec_iter_const = tf.get_variable(
                 'rec_iter_{}'.format(reconstructor_id),
-                initializer=tf.constant(0),
+                initializer= tf.constant(0),
                 trainable=False, dtype=tf.int32,
                 collections=[tf.GraphKeys.LOCAL_VARIABLES],
             )

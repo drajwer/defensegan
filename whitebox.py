@@ -30,15 +30,12 @@ import os
 import sys
 
 import keras.backend as K
+from cleverhans.model import CallableModelWrapper
 import numpy as np
 import tensorflow as tf
 
 from blackbox import dataset_gan_dict, get_cached_gan_data
-from cleverhans.attacks import CarliniWagnerL2
-from cleverhans.attacks import FastGradientMethod
-from cleverhans.attacks import MomentumIterativeMethod
-from cleverhans.attacks import DeepFool
-from cleverhans.attacks import LBFGS
+from cleverhans.attacks import CarliniWagnerL2, FastGradientMethod, MomentumIterativeMethod, DeepFool, LBFGS,  MadryEtAl, SPSA
 from cleverhans.utils import AccuracyReport
 from cleverhans.utils import set_log_level
 from cleverhans.utils_tf import model_train, model_eval
@@ -46,7 +43,7 @@ from models.gan import MnistDefenseGAN, FmnistDefenseDefenseGAN, CelebADefenseGA
 from utils.config import load_config
 from utils.gan_defense import model_eval_gan
 from utils.misc import ensure_dir
-from utils.network_builder import model_a, model_b, model_c, model_d, model_e, model_f
+from utils.network_builder import model_a, model_b, model_c, model_d, model_e, model_f, ReconstructionLayer
 from utils.visualize import save_images_files
 
 ds_gan = {
@@ -187,6 +184,7 @@ def whitebox(gan, rec_data_path=None, batch_size=128, learning_rate=0.001,
                 np.random.randn(batch_size * gan.rec_rr, gan.latent_dim).astype(np.float32))
 
         model.add_rec_model(gan, z_init_val, batch_size)
+        recon_layer = ReconstructionLayer(gan, z_init_val, x_shape, batch_size)
 
     min_val = 0.0
     if gan:
@@ -199,6 +197,22 @@ def whitebox(gan, rec_data_path=None, batch_size=128, learning_rate=0.001,
             min_val, 1.0)
         eps -= args.alpha
 
+    if 'bpda' in FLAGS.attack_type: #
+
+        if '1' in FLAGS.attack_type:
+            attack_obj = MadryEtAl(gan.model, sess=sess)
+        elif '2' in FLAGS.attack_type:
+            attack_obj = FastGradientMethod(gan.model, sess=sess)
+        elif '3' in FLAGS.attack_type:
+            attack_obj = MomentumIterativeMethod(gan.model, sess=sess)
+
+        if 'defense_gan' in FLAGS.defense_type: # 2
+            recon_images_pl = recon_layer.fprop(images_pl)
+        else:
+            recon_images_pl = images_pl
+
+        attack_params = {'eps': eps, 'ord': np.inf, 'clip_min': min_val, 'clip_max': 1.}
+
     if 'fgsm' in FLAGS.attack_type:
         attack_params = {'eps': eps, 'ord': np.inf, 'clip_min': min_val, 'clip_max': 1.}
         attack_obj = FastGradientMethod(model, sess=sess)
@@ -209,19 +223,33 @@ def whitebox(gan, rec_data_path=None, batch_size=128, learning_rate=0.001,
                          'max_iterations': attack_iterations,
                          'learning_rate': 10.0,
                          'batch_size': batch_size,
-                         'initial_const': 100,
-                         'feed': {K.learning_phase(): 0}}
+                         'initial_const': 100}
     elif FLAGS.attack_type == 'mim':
         attack_obj = MomentumIterativeMethod(model, back='tf', sess=sess)
-        attack_params = {'eps': eps, 'ord': np.inf, 'clip_min': min_val, 'clip_max': 1., 'nb_iter': FLAGS.nb_attack_iters}
+        attack_params = {'eps': 0.6, 'eps_iter': 0.2, 'ord': np.inf, 'clip_min': min_val, 'clip_max': 1., 'decay_factor': 0.1, 'nb_iter': 30}
     elif FLAGS.attack_type == 'deepfool':
-        attack_obj = DeepFool(model, back='tf', sess=sess)
-        attack_params = {'eps': eps, 'clip_min': min_val, 'clip_max': 1., 'nb_candidate': 2, 'nb_classes': 2}
+        attack_obj = DeepFool(CallableModelWrapper(model, "probs"), back='tf', sess=sess)
+        attack_params = {'eps': eps, 'clip_min': min_val, 'clip_max': 1.}
     elif FLAGS.attack_type == 'lbfgs':
         attack_obj = LBFGS(model, back='tf', sess=sess)
         attack_params = {'clip_min': min_val, 'clip_max': 1.}
+    elif FLAGS.attack_type == 'pgd':
+        attack_obj =  MadryEtAl(model, back='tf', sess=sess)
+        attack_params = {'eps': eps, 'ord': np.inf, 'clip_min': min_val, 'clip_max': 1., 'nb_iter': FLAGS.nb_attack_iters}
+    elif FLAGS.attack_type == 'spsa':
+        attack_obj = SPSA(model, back='tf', sess=sess)
+        attack_params = {}
+    
 
-    adv_x = attack_obj.generate(images_pl, **attack_params)
+    # if False: #FLAGS.attack_type == 'spsa':
+    #     adv_x = tf.map_fn(fn=lambda t: tf.unstack(attack_obj.generate(tf.stack([t]), **attack_params)), elems=images_pl)
+    # else:
+    #     adv_x = attack_obj.generate(images_pl, **attack_params)
+
+    if 'bpda' in FLAGS.attack_type:
+        adv_x = attack_obj.generate(recon_images_pl, **attack_params) - recon_images_pl + images_pl
+    else:
+        adv_x = attack_obj.generate(images_pl, **attack_params)
 
     eval_par = {'batch_size': batch_size}
     if not FLAGS.debug and FLAGS.defense_type == 'defense_gan':
@@ -246,17 +274,35 @@ def whitebox(gan, rec_data_path=None, batch_size=128, learning_rate=0.001,
 
     if FLAGS.debug and gan is not None:  # To see some qualitative results.
         images_pl_debug = test_images[:batch_size]
+        labels_pl_debug = test_labels[:batch_size]
 
         debug_dir = os.path.join('debug', 'whitebox', FLAGS.debug_dir)
         ensure_dir(debug_dir)
 
+        sess.run(tf.local_variables_initializer())
         reconstructed_tensors = gan.reconstruct(adv_x, batch_size=batch_size,
                                                 reconstructor_id=2)
 
         x_rec_orig = gan.reconstruct(images_pl, batch_size=batch_size,
                                      reconstructor_id=3)
-        x_adv_sub_val = sess.run(adv_x,
+
+        if False: #FLAGS.attack_type == 'spsa':
+            x_adv_sub_val = None
+            for i in range(batch_size):
+                tmp = sess.run(adv_x,
+                    feed_dict={
+                        images_pl: images_pl_debug[i:i+1],
+                        labels_pl: labels_pl_debug[i:i+1],
+                        K.learning_phase(): 0})
+                if x_adv_sub_val is None:
+                    x_adv_sub_val = tmp
+                else:
+                    x_adv_sub_val = np.append(x_adv_sub_val, tmp, axis=0)
+            
+        else:
+            x_adv_sub_val = sess.run(adv_x,
                                  feed_dict={images_pl: images_pl_debug,
+                                            labels_pl: labels_pl_debug,
                                             K.learning_phase(): 0})
         sess.run(tf.local_variables_initializer())
         x_rec_debug_val, x_rec_orig_val = sess.run(

@@ -1,0 +1,19 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "run-debug-server",
+			"type": "shell",
+			"command": "docker build -t drejerk/defensegan-debug --file Debug.Dockerfile . && docker run -d --rm -it  --gpus 1 --runtime=nvidia -v ${PWD}:/defensegan -w /defensegan -p 5678:5678 --name defensegan-debug drejerk/defensegan-debug",
+			"presentation": {
+				"reveal": "always",
+				"panel": "new"
+			}
+		},
+		{
+			"label": "stop-debug-server",
+			"type": "shell",
+			"command": "docker stop defensegan-debug",
+		},
+	]
+}

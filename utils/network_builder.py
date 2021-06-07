@@ -24,6 +24,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
+from cleverhans.model import Model
 
 from abc import ABCMeta
 
@@ -32,7 +33,7 @@ import numpy as np
 import tensorflow as tf
 
 
-class Model(object):
+class BaseModel(Model):
     """
     An abstract interface for model wrappers that exposes model symbols
     needed for making an attack. This abstraction removes the dependency on
@@ -110,7 +111,7 @@ class Model(object):
         raise NotImplementedError('`fprop` not implemented.')
 
 
-class CallableModelWrapper(Model):
+class CallableModelWrapper(BaseModel):
 
     def __init__(self, callable_fn, output_layer):
         """
@@ -136,7 +137,7 @@ class NoSuchLayerError(ValueError):
     """Raised when a layer that does not exist is requested."""
 
 
-class MLP(Model):
+class MLP(BaseModel):
     """
     An example of a bare bones multilayer perceptron (MLP) class.
     """
@@ -160,6 +161,8 @@ class MLP(Model):
 
             layer.set_input_shape(input_shape)
             input_shape = layer.get_output_shape()
+
+        self.nb_classes = layers[-1].output_shape[1]
 
     def fprop(self, x, set_ref=False, no_rec=False):
         states = []

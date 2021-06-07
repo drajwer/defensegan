@@ -2,48 +2,126 @@
 # sets=(mnist fmnist celeba)
 # source venv/bin/activate
 
-echo \n\n\n\n\n
-echo "Running celebA lbfgs..."
-python whitebox.py --cfg output/gans/celeba-long-run \
-    --results_dir whitebox-celeba-lbfgs \
-    --attack_type lbfgs \
-    --defense_type defense_gan --debug True --debug_dir debug/whitebox-celeba-lbfgs
+rm -f debug/whitebox/debug/whitebox-mnist-mim/*
 
-echo \n\n\n\n\n
-echo "Running celebA deepfool..."
-python whitebox.py --cfg output/gans/celeba-long-run \
-    --results_dir whitebox-celeba-deepfool \
-    --attack_type deepfool \
-    --fgsm_eps 0.1 \
-    --defense_type defense_gan --debug True --debug_dir debug/whitebox-celeba-deepfool
+# echo "Running mnist mim..."
+# python whitebox.py \
+# --cfg output/gans/mnist-long \
+# --results_dir debugging \
+# --bb_model A \
+# --sub_model B \
+# --fgsm_eps 0.3 \
+# --defense_type defense_gan \
+# --attack_type pgd \
+# --debug True \
+# --debug_dir debug/debugging-mnist-pgd \
+# --nb_epochs 1 \
+# --nb_epochs_s 1 \
+# --data_aug 1 \ 
 
-echo "Running celebA MIM..."
-python whitebox.py --cfg output/gans/celeba-long-run \
-    --results_dir whitebox-celeba-mim \
-    --attack_type mim \
-    --fgsm_eps 0.1 \
-    --defense_type defense_gan --debug True --debug_dir debug/whitebox-celeba-mim
+echo ""
+echo ""
+echo ""
+echo "Running mnist spsa..."
+python whitebox.py \
+--cfg output/gans/mnist-long \
+--results_dir debugging \
+--bb_model A \
+--sub_model B \
+--fgsm_eps 0.3 \
+--defense_type defense_gan \
+--attack_type spsa \
+--debug True \
+--debug_dir debug/debugging-mnist-spsa \
+--nb_epochs 1 \
+--nb_epochs_s 1 \
+--data_aug 1 \ 
 
-echo \n\n\n\n\n
-echo "Running mnist lbfgs..."
-python whitebox.py --cfg output/gans/mnist \
-    --results_dir whitebox-mnist-lbfgs \
-    --attack_type lbfgs \
-    --fgsm_eps 0.1 --debug True --debug_dir debug/whitebox-mnist-lbfgs
+# echo ""
+# echo ""
+# echo ""
+# echo "Running celeba mim..."
 
-echo \n\n\n\n\n
-echo "Running mnist deepfool..."
-python whitebox.py --cfg output/gans/mnist \
-    --results_dir whitebox-mnist-deepfool \
-    --attack_type deepfool \
-    --fgsm_eps 0.1 --debug True --debug_dir debug/whitebox-mnist-deepfool
+# python whitebox.py --cfg output/gans/celeba-long \
+# --results_dir debugging \
+# --bb_model A \
+# --sub_model B \
+# --fgsm_eps 0.3 \
+# --defense_type defense_gan \
+# --attack_type pgd \
+# --debug True \
+# --debug_dir debug/debugging-celeba-pgd \
+# --nb_epochs 1 \
+# --nb_epochs_s 1 \
+# --data_aug 1 \ 
 
-echo \n\n\n\n\n
-echo "Running mnist mim..."
-python whitebox.py --cfg output/gans/mnist \
-    --results_dir whitebox-mnist-mim \
-    --attack_type mim \
-    --fgsm_eps 0.1 --debug True --debug_dir debug/whitebox-mnist-mim
+echo ""
+echo ""
+echo ""
+echo "Running celeba spsa..."
+
+python whitebox.py \
+--cfg output/gans/celeba-long \
+--results_dir debugging \
+--bb_model A \
+--sub_model B \
+--fgsm_eps 0.3 \
+--defense_type defense_gan \
+--attack_type spsa \
+--debug True \
+--debug_dir debug/debugging-celeba-spsa \
+--nb_epochs 1 \
+--nb_epochs_s 1 \
+--data_aug 1 \ 
+
+# python whitebox.py --cfg output/gans/mnist-long \
+#     --results_dir whitebox-mnist-mim \
+#     --attack_type mim \
+#     --defense_type defense_gan \
+#     --fgsm_eps 0.1 --debug True --debug_dir debug/whitebox-mnist-mim-2
+
+# echo \n\n\n\n\n
+# echo "Running celebA lbfgs..."
+# python whitebox.py --cfg output/gans/celeba-long-run \
+#     --results_dir whitebox-celeba-lbfgs \
+#     --attack_type lbfgs \
+#     --defense_type defense_gan --debug True --debug_dir debug/whitebox-celeba-lbfgs
+
+# echo \n\n\n\n\n
+# echo "Running celebA deepfool..."
+# python whitebox.py --cfg output/gans/celeba-long-run \
+#     --results_dir whitebox-celeba-deepfool \
+#     --attack_type deepfool \
+#     --fgsm_eps 0.1 \
+#     --defense_type defense_gan --debug True --debug_dir debug/whitebox-celeba-deepfool
+
+# echo "Running celebA MIM..."
+# python whitebox.py --cfg output/gans/celeba-long-run \
+#     --results_dir whitebox-celeba-mim \
+#     --attack_type mim \
+#     --fgsm_eps 0.1 \
+#     --defense_type defense_gan --debug True --debug_dir debug/whitebox-celeba-mim
+
+# echo \n\n\n\n\n
+# echo "Running mnist lbfgs..."
+# python whitebox.py --cfg output/gans/mnist-long \
+#     --results_dir whitebox-mnist-lbfgs \
+#     --attack_type lbfgs \
+#     --fgsm_eps 0.1 --debug True --debug_dir debug/whitebox-mnist-lbfgs
+
+# echo \n\n\n\n\n
+# echo "Running mnist deepfool..."
+# python whitebox.py --cfg output/gans/mnist-long \
+#     --results_dir whitebox-mnist-deepfool \
+#     --attack_type deepfool \
+#     --fgsm_eps 0.1 --debug True --debug_dir debug/whitebox-mnist-deepfool
+
+# echo \n\n\n\n\n
+# echo "Running mnist mim..."
+# python whitebox.py --cfg output/gans/mnist-long \
+#     --results_dir whitebox-mnist-mim \
+#     --attack_type mim \
+#     --fgsm_eps 0.1 --debug True --debug_dir debug/whitebox-mnist-mim
 
 #     --results_dir celeba-1-11 \
 #     --bb_model A \
