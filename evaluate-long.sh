@@ -1,7 +1,7 @@
 #!/bin/bash
-sets=(mnist fmnist celeba)
-attacks=(pgd spsa mim fgsm cw rand_fgsm)
-defenses=(defense_gan adv_tr none)
+sets=(fmnist)
+attacks=(fgsm cw rand_fgsm)
+defenses=(defense_gan none)
 epses=(0.1 0.3 0.6)
 # Missing attacks
 #sets=(mnist fmnist)

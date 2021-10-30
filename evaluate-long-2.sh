@@ -1,8 +1,8 @@
 #!/bin/bash
-sets=(mnist fmnist celeba)
+sets=(mnist)
 attacks=(bpda1 bpda2 bpda3)
 defenses=(defense_gan)
-epses=(0.1 0.3)
+epses=(0.3)
 # Missing attacks
 #sets=(mnist fmnist)
 #attacks=(spsa)

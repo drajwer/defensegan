@@ -15,6 +15,7 @@
 
 """Contains the GAN implementations of the abstract model class."""
 
+from tensorflow.python.ops.gen_array_ops import shape
 import cPickle
 import os
 import time
@@ -362,8 +363,9 @@ class DefenseGANBase(AbstractModel):
         with tf.variable_scope(tf.get_variable_scope(), reuse=tf.AUTO_REUSE):
             rec_iter_const = tf.get_variable(
                 'rec_iter_{}'.format(reconstructor_id),
-                initializer= tf.constant(0),
+                initializer=tf.initializers.constant(0, verify_shape=False),
                 trainable=False, dtype=tf.int32,
+                shape=[],
                 collections=[tf.GraphKeys.LOCAL_VARIABLES],
             )
             # The latent variables.

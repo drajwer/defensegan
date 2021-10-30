@@ -36,6 +36,7 @@ import tensorflow as tf
 
 from blackbox import dataset_gan_dict, get_cached_gan_data
 from cleverhans.attacks import CarliniWagnerL2, FastGradientMethod, MomentumIterativeMethod, DeepFool, LBFGS,  MadryEtAl, SPSA
+from cleverhansbpda.attacks import BPDABasicIterativeMethod, BPDAFastGradientMethod, BPDAMomentumIterativeMethod, BPDAMadryEtAl
 from cleverhans.utils import AccuracyReport
 from cleverhans.utils import set_log_level
 from cleverhans.utils_tf import model_train, model_eval
@@ -43,7 +44,7 @@ from models.gan import MnistDefenseGAN, FmnistDefenseDefenseGAN, CelebADefenseGA
 from utils.config import load_config
 from utils.gan_defense import model_eval_gan
 from utils.misc import ensure_dir
-from utils.network_builder import model_a, model_b, model_c, model_d, model_e, model_f, ReconstructionLayer
+from utils.network_builder import model_a, model_b, model_c, model_d, model_e, model_f, ReconstructionLayer, BPDAModelWrapper
 from utils.visualize import save_images_files
 
 ds_gan = {
@@ -57,7 +58,7 @@ orig_data_paths = {k: 'data/cache/{}_pkl'.format(k) for k in ds_gan.keys()}
 def whitebox(gan, rec_data_path=None, batch_size=128, learning_rate=0.001,
              nb_epochs=10, eps=0.3, online_training=False,
              test_on_dev=True, attack_type='fgsm', defense_type='gan',
-             num_tests=-1, num_train=-1):
+             num_tests=-1, num_train=-1, rng=None):
     """Based on MNIST tutorial from cleverhans.
     
     Args:
@@ -107,6 +108,8 @@ def whitebox(gan, rec_data_path=None, batch_size=128, learning_rate=0.001,
     x_shape = [None] + list(train_images.shape[1:])
     images_pl = tf.placeholder(tf.float32, shape=[None] + list(train_images.shape[1:]))
     labels_pl = tf.placeholder(tf.float32, shape=[None] + [train_labels.shape[1]])
+    recon_images_pl = tf.placeholder(tf.float32, shape=[None] + list(train_images.shape[1:]))
+    recon_images_pl_test = tf.placeholder(tf.float32, shape=[None] + list(test_images.shape[1:]))
 
     if num_tests > 0:
         test_images = test_images[:num_tests]
@@ -141,9 +144,6 @@ def whitebox(gan, rec_data_path=None, batch_size=128, learning_rate=0.001,
         'learning_rate': learning_rate,
     }
 
-    rng = np.random.RandomState([11, 24, 1990])
-    tf.set_random_seed(11241990)
-
     preds_adv = None
     if FLAGS.defense_type == 'adv_tr':
         attack_params = {'eps': FLAGS.fgsm_eps_tr,
@@ -176,15 +176,18 @@ def whitebox(gan, rec_data_path=None, batch_size=128, learning_rate=0.001,
     # Initialize the Fast Gradient Sign Method (FGSM) attack object and
     # graph.
 
-    if FLAGS.defense_type == 'defense_gan':
-        z_init_val = None
+    # if FLAGS.defense_type == 'defense_gan':
+    #     z_init_val = None
 
-        if FLAGS.same_init:
-            z_init_val = tf.constant(
-                np.random.randn(batch_size * gan.rec_rr, gan.latent_dim).astype(np.float32))
+    #     if FLAGS.same_init:
+    #         z_init_val = tf.constant(
+    #             np.random.randn(batch_size * gan.rec_rr, gan.latent_dim).astype(np.float32))
 
-        model.add_rec_model(gan, z_init_val, batch_size)
-        recon_layer = ReconstructionLayer(gan, z_init_val, x_shape, batch_size)
+    #     model.add_rec_model(gan, z_init_val, batch_size)
+    #     recon_layer = ReconstructionLayer(gan, z_init_val, x_shape, batch_size)
+
+    z_init_val = tf.constant(
+        np.random.randn(batch_size * gan.rec_rr, gan.latent_dim).astype(np.float32))
 
     min_val = 0.0
     if gan:
@@ -194,28 +197,27 @@ def whitebox(gan, rec_data_path=None, batch_size=128, learning_rate=0.001,
     if 'rand' in FLAGS.attack_type:
         test_images = np.clip(
             test_images + args.alpha * np.sign(np.random.randn(*test_images.shape)),
-            min_val, 1.0)
+            min_val, 1.0) 
         eps -= args.alpha
 
     if 'bpda' in FLAGS.attack_type: #
-
-        if '1' in FLAGS.attack_type:
-            attack_obj = MadryEtAl(gan.model, sess=sess)
-        elif '2' in FLAGS.attack_type:
-            attack_obj = FastGradientMethod(gan.model, sess=sess)
-        elif '3' in FLAGS.attack_type:
-            attack_obj = MomentumIterativeMethod(gan.model, sess=sess)
-
-        if 'defense_gan' in FLAGS.defense_type: # 2
-            recon_images_pl = recon_layer.fprop(images_pl)
-        else:
-            recon_images_pl = images_pl
-
-        attack_params = {'eps': eps, 'ord': np.inf, 'clip_min': min_val, 'clip_max': 1.}
+        wrapped_model = BPDAModelWrapper(model.clone(), gan, z_init_val, batch_size)
+        if 'pgd' in FLAGS.attack_type:
+            attack_obj = BPDAMadryEtAl(wrapped_model, sess=sess)
+            attack_params = {'eps': eps, 'ord': np.inf, 'clip_min': min_val, 'clip_max': 1., 'nb_iter': FLAGS.nb_attack_iters}
+        elif 'fgsm' in FLAGS.attack_type:
+            attack_obj = BPDAFastGradientMethod(wrapped_model, sess=sess)
+            attack_params = {'eps': eps, 'ord': np.inf, 'clip_min': min_val, 'clip_max': 1.}
+        elif 'mim' in FLAGS.attack_type:
+            attack_obj = BPDAMomentumIterativeMethod(wrapped_model, sess=sess)
+            attack_params = {'eps': eps, 'ord': np.inf, 'clip_min': min_val, 'clip_max': 1., 'nb_iter': FLAGS.nb_attack_iters}
+        elif 'bim' in FLAGS.attack_type:
+            attack_obj = BPDABasicIterativeMethod(wrapped_model, sess=sess)
+            attack_params = {'eps': eps, 'ord': np.inf, 'clip_min': min_val, 'clip_max': 1., 'nb_iter': FLAGS.nb_attack_iters}
 
     if 'fgsm' in FLAGS.attack_type:
         attack_params = {'eps': eps, 'ord': np.inf, 'clip_min': min_val, 'clip_max': 1.}
-        attack_obj = FastGradientMethod(model, sess=sess)
+        attack_obj = FastGradientMethod(model, back='tf', sess=sess)
     elif FLAGS.attack_type == 'cw':
         attack_obj = CarliniWagnerL2(model, back='tf', sess=sess)
         attack_iterations = 100
@@ -239,29 +241,42 @@ def whitebox(gan, rec_data_path=None, batch_size=128, learning_rate=0.001,
     elif FLAGS.attack_type == 'spsa':
         attack_obj = SPSA(model, back='tf', sess=sess)
         attack_params = {}
-    
 
-    # if False: #FLAGS.attack_type == 'spsa':
-    #     adv_x = tf.map_fn(fn=lambda t: tf.unstack(attack_obj.generate(tf.stack([t]), **attack_params)), elems=images_pl)
-    # else:
-    #     adv_x = attack_obj.generate(images_pl, **attack_params)
 
     if 'bpda' in FLAGS.attack_type:
-        adv_x = attack_obj.generate(recon_images_pl, **attack_params) - recon_images_pl + images_pl
+        adv_x = lambda images, sess: attack_obj.generate(images_pl, images=images, sess=sess, **attack_params)
     else:
         adv_x = attack_obj.generate(images_pl, **attack_params)
 
+    
+    if FLAGS.defense_type == 'defense_gan':
+        model.add_rec_model(gan, z_init_val, batch_size)
+
     eval_par = {'batch_size': batch_size}
     if not FLAGS.debug and FLAGS.defense_type == 'defense_gan':
-        preds_adv = model.get_probs(adv_x)
+        images_pl_debug = test_images[:3*batch_size]
+        labels_pl_debug = test_labels[:3*batch_size]
+
+        if 'bpda' in FLAGS.attack_type:
+            preds_adv = lambda images, sess: model.get_probs(adv_x(images, sess))
+        else:
+            preds_adv = model.get_probs(adv_x)
+        feed = {}
 
         num_dims = len(images_pl.get_shape())
+
+        feed.update({K.learning_phase(): 0})
         avg_inds = list(range(1, num_dims))
-        diff_op = tf.reduce_mean(tf.square(adv_x - images_pl), axis=avg_inds)
+
+        if 'bpda' in FLAGS.attack_type:
+            diff_op = lambda images, sess: tf.reduce_mean(tf.square(adv_x(images, sess) - images_pl), axis=avg_inds)
+        else:
+            diff_op = diff_op = tf.reduce_mean(tf.square(adv_x - images_pl), axis=avg_inds)
+
         acc_adv, roc_info = model_eval_gan(
             sess, images_pl, labels_pl, preds_adv, None,
-            test_images=test_images, test_labels=test_labels, args=eval_par,
-            feed={K.learning_phase(): 0}, diff_op=diff_op,
+            test_images=images_pl_debug, test_labels=labels_pl_debug, args=eval_par,
+            feed=feed, diff_op=diff_op,
         )
         print('Test accuracy on adversarial examples: %0.4f\n' % acc_adv)
     elif not FLAGS.debug:
@@ -276,6 +291,9 @@ def whitebox(gan, rec_data_path=None, batch_size=128, learning_rate=0.001,
         images_pl_debug = test_images[:batch_size]
         labels_pl_debug = test_labels[:batch_size]
 
+        if 'bpda' in FLAGS.attack_type:
+            adv_x = adv_x(images_pl_debug, sess)
+
         debug_dir = os.path.join('debug', 'whitebox', FLAGS.debug_dir)
         ensure_dir(debug_dir)
 
@@ -285,30 +303,18 @@ def whitebox(gan, rec_data_path=None, batch_size=128, learning_rate=0.001,
 
         x_rec_orig = gan.reconstruct(images_pl, batch_size=batch_size,
                                      reconstructor_id=3)
+        recon_images = images_pl_debug
 
-        if False: #FLAGS.attack_type == 'spsa':
-            x_adv_sub_val = None
-            for i in range(batch_size):
-                tmp = sess.run(adv_x,
-                    feed_dict={
-                        images_pl: images_pl_debug[i:i+1],
-                        labels_pl: labels_pl_debug[i:i+1],
-                        K.learning_phase(): 0})
-                if x_adv_sub_val is None:
-                    x_adv_sub_val = tmp
-                else:
-                    x_adv_sub_val = np.append(x_adv_sub_val, tmp, axis=0)
-            
-        else:
-            x_adv_sub_val = sess.run(adv_x,
-                                 feed_dict={images_pl: images_pl_debug,
-                                            labels_pl: labels_pl_debug,
-                                            K.learning_phase(): 0})
+        x_adv_sub_val = sess.run(adv_x,
+                                feed_dict={images_pl: images_pl_debug,
+                                    labels_pl: labels_pl_debug,
+                                        K.learning_phase(): 0})
         sess.run(tf.local_variables_initializer())
         x_rec_debug_val, x_rec_orig_val = sess.run(
             [reconstructed_tensors, x_rec_orig],
             feed_dict={
                 images_pl: images_pl_debug,
+                recon_images_pl: recon_images,
                 K.learning_phase(): 0})
 
         save_images_files(x_adv_sub_val, output_dir=debug_dir,
@@ -321,6 +327,8 @@ def whitebox(gan, rec_data_path=None, batch_size=128, learning_rate=0.001,
                           postfix='orig')
         save_images_files(x_rec_orig_val, output_dir=debug_dir,
                           postfix='orig_rec')
+        # save_images_files(recon_images, output_dir=debug_dir,
+        #           postfix='bpda')
 
     return acc_adv, 0, roc_info
 
@@ -329,6 +337,11 @@ import re
 
 
 def main(cfg, argv=None):
+    rng = np.random.RandomState([11, 24, 1990])
+    tf.set_random_seed(11241990)
+    import random
+    random.seed(2021)
+
     FLAGS = tf.app.flags.FLAGS
     GAN = dataset_gan_dict[FLAGS.dataset_name]
 
@@ -382,6 +395,7 @@ def main(cfg, argv=None):
         num_tests=FLAGS.num_tests,
         attack_type=FLAGS.attack_type,
         num_train=FLAGS.num_train,
+        rng=rng
     )
 
     ensure_dir(results_dir)

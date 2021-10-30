@@ -24,6 +24,8 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
+from copy import copy
+
 from cleverhans.model import Model
 
 from abc import ABCMeta
@@ -31,6 +33,7 @@ from abc import ABCMeta
 import keras.backend as K
 import numpy as np
 import tensorflow as tf
+import functools
 
 
 class BaseModel(Model):
@@ -109,6 +112,9 @@ class BaseModel(Model):
                  representation of their output.
         """
         raise NotImplementedError('`fprop` not implemented.')
+    
+    def clone(self):
+        raise NotImplementedError('`clone` not implemented.')
 
 
 class CallableModelWrapper(BaseModel):
@@ -127,11 +133,59 @@ class CallableModelWrapper(BaseModel):
         self.callable_fn = callable_fn
 
     def get_layer_names(self):
-        return [self.output_layer]
+        return self.model.get_layer_names()
 
     def fprop(self, x):
         return {self.output_layer: self.callable_fn(x)}
 
+    def clone(self):
+        return CallableModelWrapper(self.callable_fn, self.output_layer)
+
+def tf_custom_gradient_method(f):
+    @functools.wraps(f)
+    def wrapped(self, *args, **kwargs):
+        if not hasattr(self, '_tf_custom_gradient_wrappers'):
+            self._tf_custom_gradient_wrappers = {}
+        if f not in self._tf_custom_gradient_wrappers:
+            self._tf_custom_gradient_wrappers[f] = tf.custom_gradient(lambda *a, **kw: f(self, *a, **kw))
+        return self._tf_custom_gradient_wrappers[f](*args, **kwargs)
+    return wrapped
+
+
+class BPDAModelWrapper(BaseModel):
+
+    def __init__(self, model, gan, z_init, batch_size):
+        """
+        Wrap a callable function that takes a tensor as input and returns
+        a tensor as output with the given layer name.
+        :param callable_fn: The callable function taking a tensor and
+                            returning a given layer as output.
+        :param output_layer: A string of the output layer returned by the
+                             function. (Usually either "probs" or "logits".)
+        """
+
+        self.model = model
+        self.batch_size = batch_size
+        self.rec_layer = ReconstructionLayer(gan, z_init, model.input_shape, batch_size)
+        self.rec_layer.set_input_shape(self.model.input_shape)
+
+
+    def get_layer_names(self):
+        return [self.output_layer]
+
+    def reconstruct(self, x):
+        return self.rec_layer.fprop(x)
+        x_shape = tf.shape(x)
+        batches = tf.reshape(x, [-1, self.batch_size, 28, 28, 1])
+        rec_batches = tf.map_fn(fn=lambda x_batch: self.rec_layer.fprop(x_batch), elems=batches)
+
+        return tf.reshape(rec_batches, x_shape)
+
+    def fprop(self, x):
+        return self.model.fprop(x)
+    
+    def clone(self):
+        return BPDAModelWrapper(self.model.clone(), self.gan, self.z_init, self.batch_size)
 
 class NoSuchLayerError(ValueError):
     """Raised when a layer that does not exist is requested."""
@@ -142,8 +196,13 @@ class MLP(BaseModel):
     An example of a bare bones multilayer perceptron (MLP) class.
     """
 
-    def __init__(self, layers, input_shape, rec_model=None):
+    def __init__(self):
         super(MLP, self).__init__()
+
+    def __init__(self, layers=[], input_shape=[], rec_model=None):
+        super(MLP, self).__init__()
+        if not layers or not input_shape:
+            return
         self.layer_names = []
         self.layers = layers
         self.input_shape = input_shape
@@ -184,6 +243,14 @@ class MLP(BaseModel):
         rec_layer.set_input_shape(self.input_shape)
         self.layers = [rec_layer] + self.layers
         self.layer_names = ['reconstruction'] + self.layer_names
+
+    def clone(self):
+        new = MLP()
+        new.layer_names = copy(self.layer_names)
+        new.layers = copy(self.layers)
+        new.input_shape = self.input_shape
+        new.nb_classes = self.nb_classes
+        return new
 
 
 class Layer(object):
@@ -266,10 +333,10 @@ class ReconstructionLayer(Layer):
     def get_output_shape(self):
         return self.output_shape
 
-    def fprop(self, x):
+    def fprop(self, x, back_prop=True):
         x.set_shape(self.input_shape)
         self.rec = self.rec_model.reconstruct(
-            x, batch_size=self.batch_size, back_prop=True, z_init_val=self.z_init,
+            x, batch_size=self.batch_size, back_prop=back_prop, z_init_val=self.z_init,
             reconstructor_id=123)
         return self.rec
 

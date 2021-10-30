@@ -87,21 +87,23 @@ def model_eval_gan(
         else:
             raise ValueError("Exactly one of model argument"
                              " and predictions argument should be specified.")
-
-    # Define accuracy symbolically.
-    correct_preds = tf.equal(tf.argmax(labels, axis=-1),
+    if not callable(predictions):
+        # Define accuracy symbolically.
+        correct_preds = tf.equal(tf.argmax(labels, axis=-1),
                              tf.argmax(predictions, axis=-1))
 
-    if predictions_rec is not None:
+    if predictions_rec is not None and not callable(predictions_rec): 
         correct_preds_rec = tf.equal(tf.argmax(labels, axis=-1),
                                      tf.argmax(predictions_rec, axis=-1))
         acc_value_rec = tf.reduce_sum(tf.to_float(correct_preds_rec))
 
     accuracy_rec = 0.0
-    cur_labels = tf.argmax(labels, axis=-1),
-    cur_preds = tf.argmax(predictions, axis=-1)
 
-    acc_value = tf.reduce_sum(tf.to_float(correct_preds))
+    if not callable(predictions):
+        cur_labels = tf.argmax(labels, axis=-1),
+        cur_preds = tf.argmax(predictions, axis=-1)
+
+        acc_value = tf.reduce_sum(tf.to_float(correct_preds))
 
 
     diffs = []
@@ -128,21 +130,44 @@ def model_eval_gan(
 
         # The last batch may be smaller than all others, so we need to
         # account for variable batch size here.
-        feed_dict = {images: test_images[start:end], labels: test_labels[start:end]}
+        images_batch = test_images[start:end]
+        labels_batch = test_labels[start:end]
+        feed_dict = {images: images_batch, labels: labels_batch}
         if feed is not None:
             feed_dict.update(feed)
 
+        
+        if callable(predictions):
+            # Define accuracy symbolically.
+            predictions_val = predictions(images_batch, sess)
+            correct_preds = tf.equal(tf.argmax(labels, axis=-1),
+                                 tf.argmax(predictions_val, axis=-1))
+            
+            cur_labels = tf.argmax(labels, axis=-1),
+            cur_preds = tf.argmax(predictions_val, axis=-1)
+
+            acc_value = tf.reduce_sum(tf.to_float(correct_preds))
+
+        if predictions_rec is not None and callable(predictions_rec): 
+            predictions_rec_val = predictions_rec(images_batch, sess)
+            correct_preds_rec = tf.equal(tf.argmax(labels, axis=-1),
+                                         tf.argmax(predictions_rec_val, axis=-1))
+            acc_value_rec = tf.reduce_sum(tf.to_float(correct_preds_rec))
 
 
         run_list = [acc_value,cur_labels,cur_preds]
 
         if diff_op is not None:
-            run_list += [diff_op]
+            if callable(diff_op):
+                run_list += [diff_op(images_batch, sess)]
+            else:
+                run_list += [diff_op]
 
         if predictions_rec is not None:
             run_list += [acc_value_rec]
             acc_val_ind = len(run_list)-1;
 
+        sess.run(tf.local_variables_initializer())
         outs = sess.run(run_list,feed_dict=feed_dict)
         cur_acc = outs[0]
 
