@@ -35,7 +35,7 @@ import numpy as np
 import tensorflow as tf
 
 from blackbox import dataset_gan_dict, get_cached_gan_data
-from cleverhans.attacks import CarliniWagnerL2, FastGradientMethod, MomentumIterativeMethod, DeepFool, LBFGS,  MadryEtAl, SPSA
+from cleverhans.attacks import CarliniWagnerL2, FastGradientMethod, MomentumIterativeMethod, DeepFool, LBFGS,  MadryEtAl, SPSA, BasicIterativeMethod
 from cleverhansbpda.attacks import BPDABasicIterativeMethod, BPDAFastGradientMethod, BPDAMomentumIterativeMethod, BPDAMadryEtAl
 from cleverhans.utils import AccuracyReport
 from cleverhans.utils import set_log_level
@@ -194,6 +194,7 @@ def whitebox(gan, rec_data_path=None, batch_size=128, learning_rate=0.001,
         if gan.dataset_name == 'celeba':
             min_val = -1.0
 
+    eps_iter = 2*eps / FLAGS.nb_attack_iters
     if 'rand' in FLAGS.attack_type:
         test_images = np.clip(
             test_images + args.alpha * np.sign(np.random.randn(*test_images.shape)),
@@ -228,7 +229,7 @@ def whitebox(gan, rec_data_path=None, batch_size=128, learning_rate=0.001,
                          'initial_const': 100}
     elif FLAGS.attack_type == 'mim':
         attack_obj = MomentumIterativeMethod(model, back='tf', sess=sess)
-        attack_params = {'eps': 0.6, 'eps_iter': 0.2, 'ord': np.inf, 'clip_min': min_val, 'clip_max': 1., 'decay_factor': 0.1, 'nb_iter': 30}
+        attack_params = {'eps': eps, 'eps_iter': eps_iter, 'ord': np.inf, 'clip_min': min_val, 'clip_max': 1., 'nb_iter': FLAGS.nb_attack_iters}
     elif FLAGS.attack_type == 'deepfool':
         attack_obj = DeepFool(CallableModelWrapper(model, "probs"), back='tf', sess=sess)
         attack_params = {'eps': eps, 'clip_min': min_val, 'clip_max': 1.}
@@ -237,7 +238,10 @@ def whitebox(gan, rec_data_path=None, batch_size=128, learning_rate=0.001,
         attack_params = {'clip_min': min_val, 'clip_max': 1.}
     elif FLAGS.attack_type == 'pgd':
         attack_obj =  MadryEtAl(model, back='tf', sess=sess)
-        attack_params = {'eps': eps, 'ord': np.inf, 'clip_min': min_val, 'clip_max': 1., 'nb_iter': FLAGS.nb_attack_iters}
+        attack_params = {'eps': eps, 'eps_iter': eps_iter, 'ord': np.inf, 'clip_min': min_val, 'clip_max': 1., 'nb_iter': FLAGS.nb_attack_iters}
+    elif FLAGS.attack_type == 'bim':
+        attack_obj =  BasicIterativeMethod(model, back='tf', sess=sess)
+        attack_params = {'eps': eps, 'eps_iter': eps_iter, 'ord': np.inf, 'clip_min': min_val, 'clip_max': 1., 'nb_iter': FLAGS.nb_attack_iters}
     elif FLAGS.attack_type == 'spsa':
         attack_obj = SPSA(model, back='tf', sess=sess)
         attack_params = {}
@@ -254,9 +258,6 @@ def whitebox(gan, rec_data_path=None, batch_size=128, learning_rate=0.001,
 
     eval_par = {'batch_size': batch_size}
     if not FLAGS.debug and FLAGS.defense_type == 'defense_gan':
-        images_pl_debug = test_images[:3*batch_size]
-        labels_pl_debug = test_labels[:3*batch_size]
-
         if 'bpda' in FLAGS.attack_type:
             preds_adv = lambda images, sess: model.get_probs(adv_x(images, sess))
         else:
@@ -275,7 +276,7 @@ def whitebox(gan, rec_data_path=None, batch_size=128, learning_rate=0.001,
 
         acc_adv, roc_info = model_eval_gan(
             sess, images_pl, labels_pl, preds_adv, None,
-            test_images=images_pl_debug, test_labels=labels_pl_debug, args=eval_par,
+            test_images=test_images, test_labels=test_labels, args=eval_par,
             feed=feed, diff_op=diff_op,
         )
         print('Test accuracy on adversarial examples: %0.4f\n' % acc_adv)

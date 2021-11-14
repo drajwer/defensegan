@@ -113,8 +113,9 @@ def model_eval_gan(
     accuracy = 0.0
 
     # Compute number of batches.
-    nb_batches = int(math.ceil(float(len(test_images)) / args.batch_size))
-    assert nb_batches * args.batch_size >= len(test_images)
+    nb_batches = int(math.floor(float(len(test_images)) / args.batch_size))
+    n_images = args.batch_size * nb_batches
+    # assert nb_batches * args.batch_size >= len(test_images)
 
     for batch in range(nb_batches):
         # To initialize the variables of Defense-GAN at test time.
@@ -186,11 +187,11 @@ def model_eval_gan(
 
         accuracy += cur_acc
 
-    assert end >= len(test_images)
+    assert end >= n_images
 
     # Divide by number of examples to get final value.
-    accuracy /= len(test_images)
-    accuracy_rec /= len(test_images)
+    accuracy /= n_images
+    accuracy_rec /= n_images
     preds = np.concatenate(preds)
     all_labels = np.concatenate(all_labels)
 

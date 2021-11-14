@@ -21,8 +21,8 @@ do
         echo "Running $dataset eval. Attack: $attack eps: $eps, defense: $defense)..."
         python whitebox.py \
             --cfg output/gans/$dataset-long \
-            --results_dir eval-$dateNow-$dataset-$attack-$eps-$defense \
-            --bb_model A \
+            --results_dir eval-$dateNow-$dataset-$attack-$eps-$defense-B \
+            --bb_model B \
             --fgsm_eps $eps \
             --defense_type $defense \
             --attack_type $attack

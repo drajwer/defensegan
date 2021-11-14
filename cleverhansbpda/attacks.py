@@ -400,17 +400,19 @@ class BPDAMomentumIterativeMethod(Attack):
 
         # Initialize loop variables
         momentum = 0
-        adv_x = x
 
         # Fix labels to the first model predictions for loss computation
         y, nb_classes = self.get_or_guess_labels(x, kwargs)
         y = y / tf.reduce_sum(y, 1, keep_dims=True)
         targeted = (self.y_target is not None)
 
+        adv_x_old = tf.placeholder(x.dtype, x.shape)
+        adv_x_val = images
+
         from cleverhans import utils_tf
         for i in range(self.nb_iter):
             # Compute loss
-            rec_x = self.model.reconstruct(adv_x)
+            rec_x = self.model.reconstruct(adv_x_old)
             preds = self.model.get_probs(rec_x)
             loss = utils_tf.model_loss(y, preds, mean=False)
             if targeted:
@@ -448,7 +450,7 @@ class BPDAMomentumIterativeMethod(Attack):
 
             # Update and clip adversarial example in current iteration
             scaled_grad = self.eps_iter * normalized_grad
-            adv_x = adv_x + scaled_grad
+            adv_x = adv_x_old + scaled_grad
             adv_x = x + utils_tf.clip_eta(adv_x - x, self.ord, self.eps)
 
             if self.clip_min is not None and self.clip_max is not None:
@@ -456,10 +458,12 @@ class BPDAMomentumIterativeMethod(Attack):
 
             sess.run(tf.local_variables_initializer())
             adv_x_val = sess.run(adv_x,
-                    feed_dict={x: images, K.learning_phase(): 0})
-            adv_x = tf.constant(adv_x_val)
+                    feed_dict={
+                        x: images,
+                        adv_x_old: adv_x_val,
+                        K.learning_phase(): 0})
 
-        return adv_x
+        return tf.constant(adv_x_val)
 
     def parse_params(self, eps=0.3, eps_iter=0.06, nb_iter=10, y=None,
                      ord=np.inf, decay_factor=1.0,
