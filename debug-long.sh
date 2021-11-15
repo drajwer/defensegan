@@ -25,13 +25,13 @@ do
         python whitebox.py \
             --cfg output/gans/$dataset-long \
             --results_dir debug$dateNow-$dataset-$attack-$eps-$defense \
-            --bb_model A \
+            --model A \
             --fgsm_eps $eps \
             --defense_type $defense \
             --attack_type $attack \
             --nb_epochs 1 \
             --nb_epochs_s 1 \
-            --data_aug 1 
+            --data_aug 1
 
             #--debug False \
             #--debug_dir debug/debug$dateNow-$dataset-$attack-$eps-$defense \

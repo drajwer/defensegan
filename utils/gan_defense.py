@@ -41,6 +41,8 @@ def model_eval_gan(
     args=None,
     model=None,
     diff_op=None,
+    adv_x=None,
+    adv_x_bpda=None,
 ):
     """Computes the accuracy of a model on test data as well as the
     reconstruction errors for attack detection.
@@ -87,23 +89,21 @@ def model_eval_gan(
         else:
             raise ValueError("Exactly one of model argument"
                              " and predictions argument should be specified.")
-    if not callable(predictions):
-        # Define accuracy symbolically.
-        correct_preds = tf.equal(tf.argmax(labels, axis=-1),
+
+    # Define accuracy symbolically.
+    correct_preds = tf.equal(tf.argmax(labels, axis=-1),
                              tf.argmax(predictions, axis=-1))
 
-    if predictions_rec is not None and not callable(predictions_rec): 
+    if predictions_rec is not None:
         correct_preds_rec = tf.equal(tf.argmax(labels, axis=-1),
                                      tf.argmax(predictions_rec, axis=-1))
         acc_value_rec = tf.reduce_sum(tf.to_float(correct_preds_rec))
 
     accuracy_rec = 0.0
+    cur_labels = tf.argmax(labels, axis=-1),
+    cur_preds = tf.argmax(predictions, axis=-1)
 
-    if not callable(predictions):
-        cur_labels = tf.argmax(labels, axis=-1),
-        cur_preds = tf.argmax(predictions, axis=-1)
-
-        acc_value = tf.reduce_sum(tf.to_float(correct_preds))
+    acc_value = tf.reduce_sum(tf.to_float(correct_preds))
 
 
     diffs = []
@@ -114,8 +114,7 @@ def model_eval_gan(
 
     # Compute number of batches.
     nb_batches = int(math.floor(float(len(test_images)) / args.batch_size))
-    n_images = args.batch_size * nb_batches
-    # assert nb_batches * args.batch_size >= len(test_images)
+    n_images = nb_batches * args.batch_size
 
     for batch in range(nb_batches):
         # To initialize the variables of Defense-GAN at test time.
@@ -134,41 +133,26 @@ def model_eval_gan(
         images_batch = test_images[start:end]
         labels_batch = test_labels[start:end]
         feed_dict = {images: images_batch, labels: labels_batch}
+
         if feed is not None:
             feed_dict.update(feed)
 
-        
-        if callable(predictions):
-            # Define accuracy symbolically.
-            predictions_val = predictions(images_batch, sess)
-            correct_preds = tf.equal(tf.argmax(labels, axis=-1),
-                                 tf.argmax(predictions_val, axis=-1))
-            
-            cur_labels = tf.argmax(labels, axis=-1),
-            cur_preds = tf.argmax(predictions_val, axis=-1)
+        if adv_x_bpda is not None:
+            # sess.run(tf.local_variables_initializer())
+            adv_x_bpda_val = adv_x(images_batch, sess)
+            feed_dict.update({adv_x_bpda: adv_x_bpda_val})
 
-            acc_value = tf.reduce_sum(tf.to_float(correct_preds))
-
-        if predictions_rec is not None and callable(predictions_rec): 
-            predictions_rec_val = predictions_rec(images_batch, sess)
-            correct_preds_rec = tf.equal(tf.argmax(labels, axis=-1),
-                                         tf.argmax(predictions_rec_val, axis=-1))
-            acc_value_rec = tf.reduce_sum(tf.to_float(correct_preds_rec))
 
 
         run_list = [acc_value,cur_labels,cur_preds]
 
         if diff_op is not None:
-            if callable(diff_op):
-                run_list += [diff_op(images_batch, sess)]
-            else:
-                run_list += [diff_op]
+            run_list += [diff_op]
 
         if predictions_rec is not None:
             run_list += [acc_value_rec]
             acc_val_ind = len(run_list)-1;
 
-        sess.run(tf.local_variables_initializer())
         outs = sess.run(run_list,feed_dict=feed_dict)
         cur_acc = outs[0]
 
@@ -187,7 +171,6 @@ def model_eval_gan(
 
         accuracy += cur_acc
 
-    assert end >= n_images
 
     # Divide by number of examples to get final value.
     accuracy /= n_images

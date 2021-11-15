@@ -24,11 +24,11 @@ WORKDIR /defensegan/
 CMD python -m ptvsd --host 0.0.0.0 --port 5678 --wait whitebox.py \
 --cfg output/gans/mnist-long \ 
 --results_dir debugging \
---bb_model A \
+--model A \
 --fgsm_eps 0.3 \
 --defense_type defense_gan \
 --attack_type bpda-fgsm \
 --nb_epochs 10
 
 #--debug True \
-# --debug_dir debug/debugging-mnist-bpda1 \
+# --debug_dir debug/debugging-mnist-bpda1 \5

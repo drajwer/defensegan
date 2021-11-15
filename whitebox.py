@@ -109,7 +109,7 @@ def whitebox(gan, rec_data_path=None, batch_size=128, learning_rate=0.001,
     images_pl = tf.placeholder(tf.float32, shape=[None] + list(train_images.shape[1:]))
     labels_pl = tf.placeholder(tf.float32, shape=[None] + [train_labels.shape[1]])
     recon_images_pl = tf.placeholder(tf.float32, shape=[None] + list(train_images.shape[1:]))
-    recon_images_pl_test = tf.placeholder(tf.float32, shape=[None] + list(test_images.shape[1:]))
+    adv_x_bpda = tf.placeholder(tf.float32, shape=[None] + list(test_images.shape[1:]))
 
     if num_tests > 0:
         test_images = test_images[:num_tests]
@@ -216,7 +216,7 @@ def whitebox(gan, rec_data_path=None, batch_size=128, learning_rate=0.001,
             attack_obj = BPDABasicIterativeMethod(wrapped_model, sess=sess)
             attack_params = {'eps': eps, 'ord': np.inf, 'clip_min': min_val, 'clip_max': 1., 'nb_iter': FLAGS.nb_attack_iters}
 
-    if 'fgsm' in FLAGS.attack_type:
+    if 'fgsm' in FLAGS.attack_type and 'bpda' not in FLAGS.attack_type:
         attack_params = {'eps': eps, 'ord': np.inf, 'clip_min': min_val, 'clip_max': 1.}
         attack_obj = FastGradientMethod(model, back='tf', sess=sess)
     elif FLAGS.attack_type == 'cw':
@@ -258,10 +258,10 @@ def whitebox(gan, rec_data_path=None, batch_size=128, learning_rate=0.001,
 
     eval_par = {'batch_size': batch_size}
     if not FLAGS.debug and FLAGS.defense_type == 'defense_gan':
-        if 'bpda' in FLAGS.attack_type:
-            preds_adv = lambda images, sess: model.get_probs(adv_x(images, sess))
-        else:
-            preds_adv = model.get_probs(adv_x)
+        adv_x_2 = adv_x_bpda if 'bpda' in FLAGS.attack_type else adv_x
+        adv_x_bpda_2 = adv_x_bpda if 'bpda' in FLAGS.attack_type else None
+
+        preds_adv = model.get_probs(adv_x_2)
         feed = {}
 
         num_dims = len(images_pl.get_shape())
@@ -269,15 +269,12 @@ def whitebox(gan, rec_data_path=None, batch_size=128, learning_rate=0.001,
         feed.update({K.learning_phase(): 0})
         avg_inds = list(range(1, num_dims))
 
-        if 'bpda' in FLAGS.attack_type:
-            diff_op = lambda images, sess: tf.reduce_mean(tf.square(adv_x(images, sess) - images_pl), axis=avg_inds)
-        else:
-            diff_op = diff_op = tf.reduce_mean(tf.square(adv_x - images_pl), axis=avg_inds)
+        diff_op = tf.reduce_mean(tf.square(adv_x_2 - images_pl), axis=avg_inds)
 
         acc_adv, roc_info = model_eval_gan(
             sess, images_pl, labels_pl, preds_adv, None,
             test_images=test_images, test_labels=test_labels, args=eval_par,
-            feed=feed, diff_op=diff_op,
+            feed=feed, diff_op=diff_op, adv_x=adv_x, adv_x_bpda=adv_x_bpda_2
         )
         print('Test accuracy on adversarial examples: %0.4f\n' % acc_adv)
     elif not FLAGS.debug:

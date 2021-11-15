@@ -79,7 +79,7 @@ class BPDAFastGradientMethod(Attack):
         sess.run(tf.local_variables_initializer())
         adv_x_val = sess.run(adv_x,
                     feed_dict={x: images, K.learning_phase(): 0})
-        return tf.constant(adv_x_val)
+        return adv_x_val
         
 
     def parse_params(self, eps=0.3, ord=np.inf, y=None, y_target=None,
@@ -254,7 +254,9 @@ class BPDABasicIterativeMethod(Attack):
         assert self.parse_params(**kwargs)
 
         # Initialize loop variables
-        eta = 0
+        eta_placeholder = tf.placeholder(x.dtype, x.shape)
+        eta_val = sess.run(tf.zeros_like(x),
+                    feed_dict={x: images, K.learning_phase(): 0})
 
         # Fix labels to the first model predictions for loss computation
         model_preds = self.model.get_probs(x)
@@ -274,35 +276,36 @@ class BPDABasicIterativeMethod(Attack):
         fgm_params = {'eps': self.eps_iter, y_kwarg: y, 'ord': self.ord,
                       'clip_min': self.clip_min, 'clip_max': self.clip_max}
 
-        for i in range(self.nb_iter):
-            FGM = FastGradientMethod(self.model, back=self.back,
+        FGM = FastGradientMethod(self.model, back=self.back,
                                      sess=self.sess)
 
-            rec_x = self.model.reconstruct(x + eta)
-            # Compute this step's perturbation
-            adv_x = FGM.generate(rec_x, **fgm_params)
+        rec_x = self.model.reconstruct(x + eta_placeholder)
+        # Compute this step's perturbation
+        adv_x = FGM.generate(rec_x, **fgm_params)
 
-            sess.run(tf.local_variables_initializer())
-            adv_x_val = sess.run(adv_x,
-                    feed_dict={x: images, K.learning_phase(): 0})
-            adv_x = tf.constant(adv_x_val)
-            
-
-            # Clipping perturbation according to clip_min and clip_max
-            if self.clip_min is not None and self.clip_max is not None:
-                adv_x = tf.clip_by_value(adv_x, self.clip_min, self.clip_max)
-
-            # Clipping perturbation eta to self.ord norm ball
-            eta = adv_x - x
-            from cleverhans.utils_tf import clip_eta
-            eta = clip_eta(eta, self.ord, self.eps)
-
-        # Define adversarial example (and clip if necessary)
-        adv_x = x + eta
+        # Clipping perturbation according to clip_min and clip_max
         if self.clip_min is not None and self.clip_max is not None:
             adv_x = tf.clip_by_value(adv_x, self.clip_min, self.clip_max)
 
-        return adv_x
+        # Clipping perturbation eta to self.ord norm ball
+        eta = adv_x - x
+        from cleverhans.utils_tf import clip_eta
+        eta = clip_eta(eta, self.ord, self.eps)
+
+        for i in range(self.nb_iter):
+            sess.run(tf.local_variables_initializer())
+            eta_val = sess.run(eta,
+                    feed_dict={x: images, eta_placeholder: eta_val, K.learning_phase(): 0})
+
+        # Define adversarial example (and clip if necessary)
+        adv_x = x + eta_placeholder
+        if self.clip_min is not None and self.clip_max is not None:
+            adv_x = tf.clip_by_value(adv_x, self.clip_min, self.clip_max)
+
+        adv_x_val = sess.run(adv_x,
+                    feed_dict={x: images, eta_placeholder: eta_val, K.learning_phase(): 0})
+
+        return adv_x_val
 
     def parse_params(self, eps=0.3, eps_iter=0.05, nb_iter=10, y=None,
                      ord=np.inf, clip_min=None, clip_max=None,
@@ -410,52 +413,52 @@ class BPDAMomentumIterativeMethod(Attack):
         adv_x_val = images
 
         from cleverhans import utils_tf
-        for i in range(self.nb_iter):
-            # Compute loss
-            rec_x = self.model.reconstruct(adv_x_old)
-            preds = self.model.get_probs(rec_x)
-            loss = utils_tf.model_loss(y, preds, mean=False)
-            if targeted:
-                loss = -loss
+        # Compute loss
+        rec_x = self.model.reconstruct(adv_x_old)
+        preds = self.model.get_probs(rec_x)
+        loss = utils_tf.model_loss(y, preds, mean=False)
+        if targeted:
+            loss = -loss
 
-            # Define gradient of loss wrt input
-            grad, = tf.gradients(loss, rec_x)
+        # Define gradient of loss wrt input
+        grad, = tf.gradients(loss, rec_x)
 
-            # Normalize current gradient and add it to the accumulated gradient
-            red_ind = list(xrange(1, len(grad.get_shape())))
-            avoid_zero_div = tf.cast(1e-12, grad.dtype)
-            grad = grad / tf.maximum(avoid_zero_div,
-                                     tf.reduce_mean(tf.abs(grad),
-                                                    red_ind,
-                                                    keep_dims=True))
-            momentum = self.decay_factor * momentum + grad
-
-            if self.ord == np.inf:
-                normalized_grad = tf.sign(momentum)
-            elif self.ord == 1:
-                norm = tf.maximum(avoid_zero_div,
-                                  tf.reduce_sum(tf.abs(momentum),
+        # Normalize current gradient and add it to the accumulated gradient
+        red_ind = list(xrange(1, len(grad.get_shape())))
+        avoid_zero_div = tf.cast(1e-12, grad.dtype)
+        grad = grad / tf.maximum(avoid_zero_div,
+                                 tf.reduce_mean(tf.abs(grad),
                                                 red_ind,
                                                 keep_dims=True))
-                normalized_grad = momentum / norm
-            elif self.ord == 2:
-                square = tf.reduce_sum(tf.square(momentum),
-                                       red_ind,
-                                       keep_dims=True)
-                norm = tf.sqrt(tf.maximum(avoid_zero_div, square))
-                normalized_grad = momentum / norm
-            else:
-                raise NotImplementedError("Only L-inf, L1 and L2 norms are "
-                                          "currently implemented.")
+        momentum = self.decay_factor * momentum + grad
 
-            # Update and clip adversarial example in current iteration
-            scaled_grad = self.eps_iter * normalized_grad
-            adv_x = adv_x_old + scaled_grad
-            adv_x = x + utils_tf.clip_eta(adv_x - x, self.ord, self.eps)
+        if self.ord == np.inf:
+            normalized_grad = tf.sign(momentum)
+        elif self.ord == 1:
+            norm = tf.maximum(avoid_zero_div,
+                              tf.reduce_sum(tf.abs(momentum),
+                                            red_ind,
+                                            keep_dims=True))
+            normalized_grad = momentum / norm
+        elif self.ord == 2:
+            square = tf.reduce_sum(tf.square(momentum),
+                                   red_ind,
+                                   keep_dims=True)
+            norm = tf.sqrt(tf.maximum(avoid_zero_div, square))
+            normalized_grad = momentum / norm
+        else:
+            raise NotImplementedError("Only L-inf, L1 and L2 norms are "
+                                      "currently implemented.")
 
-            if self.clip_min is not None and self.clip_max is not None:
-                adv_x = tf.clip_by_value(adv_x, self.clip_min, self.clip_max)
+        # Update and clip adversarial example in current iteration
+        scaled_grad = self.eps_iter * normalized_grad
+        adv_x = adv_x_old + scaled_grad
+        adv_x = x + utils_tf.clip_eta(adv_x - x, self.ord, self.eps)
 
+        if self.clip_min is not None and self.clip_max is not None:
+            adv_x = tf.clip_by_value(adv_x, self.clip_min, self.clip_max)
+
+        for i in range(self.nb_iter):
             sess.run(tf.local_variables_initializer())
             adv_x_val = sess.run(adv_x,
                     feed_dict={
@@ -463,7 +466,7 @@ class BPDAMomentumIterativeMethod(Attack):
                         adv_x_old: adv_x_val,
                         K.learning_phase(): 0})
 
-        return tf.constant(adv_x_val)
+        return adv_x_val
 
     def parse_params(self, eps=0.3, eps_iter=0.06, nb_iter=10, y=None,
                      ord=np.inf, decay_factor=1.0,
@@ -1274,21 +1277,26 @@ class BPDAMadryEtAl(Attack):
             eta = clip_eta(eta, self.ord, self.eps)
         else:
             eta = tf.zeros_like(x)
+            
+        eta_placeholder = tf.placeholder(x.dtype, x.shape)
+        eta_val = sess.run(eta,
+                    feed_dict={x: images, K.learning_phase(): 0})
 
+        eta = self.attack_single_step(x, eta_placeholder, y)
 
         for i in range(self.nb_iter):
-            eta = self.attack_single_step(x, eta, y)
             sess.run(tf.local_variables_initializer())
             eta_val = sess.run(eta,
-                    feed_dict={x: images, K.learning_phase(): 0})
-            eta = tf.constant(eta_val)
-            
+                    feed_dict={x: images, eta_placeholder: eta_val, K.learning_phase(): 0})
 
-        adv_x = x + eta
+        adv_x = x + eta_placeholder
         if self.clip_min is not None and self.clip_max is not None:
             adv_x = tf.clip_by_value(adv_x, self.clip_min, self.clip_max)
 
-        return adv_x
+        adv_x_val = sess.run(adv_x,
+                    feed_dict={x: images, eta_placeholder: eta_val, K.learning_phase(): 0})
+
+        return adv_x_val
 
 
 class FastFeatureAdversaries(Attack):
