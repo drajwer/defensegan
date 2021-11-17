@@ -205,16 +205,16 @@ def whitebox(gan, rec_data_path=None, batch_size=128, learning_rate=0.001,
         wrapped_model = BPDAModelWrapper(model.clone(), gan, z_init_val, batch_size)
         if 'pgd' in FLAGS.attack_type:
             attack_obj = BPDAMadryEtAl(wrapped_model, sess=sess)
-            attack_params = {'eps': eps, 'ord': np.inf, 'clip_min': min_val, 'clip_max': 1., 'nb_iter': FLAGS.nb_attack_iters}
+            attack_params = {'eps': eps, 'eps_iter': eps_iter, 'ord': np.inf, 'clip_min': min_val, 'clip_max': 1., 'nb_iter': FLAGS.nb_attack_iters}
         elif 'fgsm' in FLAGS.attack_type:
             attack_obj = BPDAFastGradientMethod(wrapped_model, sess=sess)
             attack_params = {'eps': eps, 'ord': np.inf, 'clip_min': min_val, 'clip_max': 1.}
         elif 'mim' in FLAGS.attack_type:
             attack_obj = BPDAMomentumIterativeMethod(wrapped_model, sess=sess)
-            attack_params = {'eps': eps, 'ord': np.inf, 'clip_min': min_val, 'clip_max': 1., 'nb_iter': FLAGS.nb_attack_iters}
+            attack_params = {'eps': eps, 'eps_iter': eps_iter, 'ord': np.inf, 'clip_min': min_val, 'clip_max': 1., 'nb_iter': FLAGS.nb_attack_iters}
         elif 'bim' in FLAGS.attack_type:
             attack_obj = BPDABasicIterativeMethod(wrapped_model, sess=sess)
-            attack_params = {'eps': eps, 'ord': np.inf, 'clip_min': min_val, 'clip_max': 1., 'nb_iter': FLAGS.nb_attack_iters}
+            attack_params = {'eps': eps, 'eps_iter': eps_iter, 'ord': np.inf, 'clip_min': min_val, 'clip_max': 1., 'nb_iter': FLAGS.nb_attack_iters}
 
     if 'fgsm' in FLAGS.attack_type and 'bpda' not in FLAGS.attack_type:
         attack_params = {'eps': eps, 'ord': np.inf, 'clip_min': min_val, 'clip_max': 1.}
