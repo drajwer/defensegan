@@ -1,6 +1,7 @@
 #!/bin/bash
 model=$1
-sets=(mnist fmnist celeba)
+#sets=(mnist fmnist celeba)
+sets=(celeba)
 #attacks=(pgd mim bim cw fgsm) deepfool lbfgs) bpda-fgsm bpda-pgd bpda-mim bpda-bim 
 attacks=(bpda-fgsm bpda-pgd bpda-mim bpda-bim) 
 defenses=(defense_gan)

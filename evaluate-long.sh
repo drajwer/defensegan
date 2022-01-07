@@ -1,6 +1,6 @@
 #!/bin/bash
 
-sets=(mnist fmnist celeba)
+sets=(celeba)
 attacks=(bpda-fgsm bpda-pgd bpda-mim bpda-bim fgsm pgd mim cw)
 defenses=(defense_gan)
 epses=(0.05 0.1 0.2 0.3)
