@@ -69,13 +69,15 @@ def measure_gan(gan, rec_data_path=None, probe_size=10000, calc_real_data_is=Tru
     sess = gan.sess
 
     # FID init
-    stats_path = 'data/fid_stats_celeba.npz' # training set statistics
+    stats_path = 'data/fid_stats_%s.npz' % FLAGS.dataset_name # training set statistics
     inception_path = fid.check_or_download_inception(None) # download inception network
 
     train_images, train_labels, test_images, test_labels = \
         get_cached_gan_data(gan, False)
 
-    images = train_images[0:probe_size] * 255 # np.concatenate(train_images, test_images)
+    images = train_images[0:] * 255 # np.concatenate(train_images, test_images)
+    if FLAGS.dataset_name != 'celeba':
+        images = images.repeat(3).reshape(list(images.shape[:-1]) + [3])
 
     # Inception Score for real data
     is_orig_mean, is_orig_stddev = (-1, -1)
@@ -90,16 +92,28 @@ def measure_gan(gan, rec_data_path=None, probe_size=10000, calc_real_data_is=Tru
     gan.batch_size = probe_size
     generated_images_tensor = gan.generator_fn()
     generated_images = sess.run(generated_images_tensor)
-    generated_images = 255*((generated_images + 1) / 2)
+    if FLAGS.dataset_name == 'celeba':
+        generated_images = 255*((generated_images + 1) / 2)
+    else:
+        generated_images = 255 * generated_images
+        generated_images = generated_images.repeat(3).reshape(list(generated_images.shape[:-1]) + [3])
+    #print(generated_images)
     is_gen_mean, is_gen_stddev = get_inception_score(generated_images)
     print('\n[#] Inception Score for generated data: mean = %f, stddev = %f\n'% (is_gen_mean, is_gen_stddev))
 
-    # load precalculated training set statistics
-    f = np.load(stats_path)
-    mu_real, sigma_real = f['mu'][:], f['sigma'][:]
-    f.close()
-
+    # try to load precalculated training set statistics or calculate from scratch
     fid.create_inception_graph(inception_path)  # load the graph into the current TF graph
+
+    try:
+        with np.load(stats_path) as f:
+            mu_real, sigma_real = f['mu'][:], f['sigma'][:]
+    except:
+        with tf.Session() as sess:
+            sess.run(tf.global_variables_initializer())
+            mu_real, sigma_real = fid.calculate_activation_statistics(images, sess, batch_size=100)
+            np.savez(stats_path, mu=mu_real, sigma=sigma_real), 
+
+    #fid.create_inception_graph(inception_path)  # load the graph into the current TF graph
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
         mu_gen, sigma_gen = fid.calculate_activation_statistics(generated_images, sess, batch_size=100)
