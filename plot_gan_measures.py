@@ -1,5 +1,6 @@
 import glob
 import os
+import sys
 from pathlib import Path
 
 dir = os.path.join('results', 'train_and_measure_gan', '0_*.txt')
