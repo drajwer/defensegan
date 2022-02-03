@@ -1,5 +1,5 @@
 dataset, model, attack, eps, defense, date, acc
-celeba, A, bpda_bim, 0.3, defense_gan, 2022-01-07 22:07, 0.19481108312342568
+celeba, E, bpda_bim, 0.3, defense_gan, 2022-01-27 23:52, 0.051536523929471036
 celeba, D, fgsm, 0.05, defense_gan, 2021-11-09 23:52, 0.5087153652392947
 celeba, C, fgsm, 0.05, defense_gan, 2021-11-09 23:52, 0.7645340050377833
 celeba, D, fgsm, 0.1, defense_gan, 2021-11-09 23:52, 0.5745088161209068
@@ -327,3 +327,19 @@ celeba, A, bpda_bim, 0.2, defense_gan, 2022-01-07 22:07, 0.39143576826196474
 celeba, F, bpda_bim, 0.3, defense_gan, 2022-01-07 22:08, 0.08428211586901763
 celeba, C, bpda_bim, 0.3, defense_gan, 2022-01-07 22:07, 0.3117884130982368
 celeba, B, bpda_bim, 0.3, defense_gan, 2022-01-07 22:07, 0.14937027707808564
+celeba, A, bpda_bim, 0.3, defense_gan, 2022-01-07 22:07, 0.19481108312342568
+celeba, E, bpda_fgsm, 0.05, defense_gan, 2022-01-27 23:52, 0.5679093198992443
+celeba, E, bpda_fgsm, 0.1, defense_gan, 2022-01-27 23:52, 0.25531486146095717
+celeba, E, bpda_fgsm, 0.2, defense_gan, 2022-01-27 23:52, 0.06473551637279597
+celeba, E, bpda_fgsm, 0.3, defense_gan, 2022-01-27 23:52, 0.04720403022670025
+celeba, E, bpda_pgd, 0.05, defense_gan, 2022-01-27 23:52, 0.5647858942065491
+celeba, E, bpda_pgd, 0.1, defense_gan, 2022-01-27 23:52, 0.23269521410579344
+celeba, E, bpda_pgd, 0.2, defense_gan, 2022-01-27 23:52, 0.0508816120906801
+celeba, E, bpda_pgd, 0.3, defense_gan, 2022-01-27 23:52, 0.04357682619647355
+celeba, E, bpda_mim, 0.05, defense_gan, 2022-01-27 23:52, 0.5569269521410579
+celeba, E, bpda_mim, 0.1, defense_gan, 2022-01-27 23:52, 0.23229219143576826
+celeba, E, bpda_mim, 0.2, defense_gan, 2022-01-27 23:52, 0.05168765743073048
+celeba, E, bpda_mim, 0.3, defense_gan, 2022-01-27 23:52, 0.043526448362720405
+celeba, E, bpda_bim, 0.05, defense_gan, 2022-01-27 23:52, 0.8375314861460957
+celeba, E, bpda_bim, 0.1, defense_gan, 2022-01-27 23:52, 0.7284130982367758
+celeba, E, bpda_bim, 0.2, defense_gan, 2022-01-27 23:52, 0.18801007556675062
