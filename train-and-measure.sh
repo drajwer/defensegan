@@ -3,7 +3,7 @@
 source venv/bin/activate
 
 
-sets=(fmnist celeba)
+sets=($1)
 # sets=(celeba)
 for set in ${sets[*]};
 do
@@ -16,7 +16,7 @@ do
     #     --is_train \
     #     --iters 100
 
-    for i in $(seq 1 50);
+    for i in $(seq 1 100);
     do
         mkdir -p debug3/gans/$set/$i
         mkdir -p debug3/debug/gans/$set/$i
@@ -24,12 +24,15 @@ do
         mv debug/debug/gans/$set-long-measure/* debug3/debug/gans/$set/$i/
         echo "Running $i turn of training."
         timeout 30m python train.py --cfg experiments/cfgs/gans/$set-long-measure.yml --is_train
-        CUDA_VISIBLE_DEVICES=""
-        export CUDA_VISIBLE_DEVICES
+        
+        if ["$set" = celeba ]
+        then
+            probe_size=20000
+        else
+            probe_size=50000
+        fi
 
-        python measure_gan.py --cfg output/gans/$set-long-measure --results_dir train_and_measure_gan_$set --probe_size 20000 --iter $i
-        CUDA_VISIBLE_DEVICES="all"
-        export CUDA_VISIBLE_DEVICES
+        python measure_gan.py --cfg output/gans/$set-long-measure --results_dir train_and_measure_gan_$set --probe_size $probe_size --iter $i
 
         echo "Finished $i turn of training."
 

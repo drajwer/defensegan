@@ -75,7 +75,7 @@ def measure_gan(gan, rec_data_path=None, probe_size=10000, calc_real_data_is=Tru
     train_images, train_labels, test_images, test_labels = \
         get_cached_gan_data(gan, False)
 
-    images = train_images[0:] * 255 # np.concatenate(train_images, test_images)
+    images = train_images[0:len(train_images)] * 255 # np.concatenate(train_images, test_images)
     if FLAGS.dataset_name != 'celeba':
         images = images.repeat(3).reshape(list(images.shape[:-1]) + [3])
 
