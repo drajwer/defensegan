@@ -32,6 +32,7 @@ do
             probe_size=50000
         fi
 
+        python generate_measurement_samples.py --cfg output/gans/$set-long-measure --results_dir train_and_measure_gan_$set --probe_size $probe_size --iter $i
         python measure_gan.py --cfg output/gans/$set-long-measure --results_dir train_and_measure_gan_$set --probe_size $probe_size --iter $i
 
         echo "Finished $i turn of training."

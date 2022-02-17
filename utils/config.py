@@ -92,3 +92,7 @@ def load_config(cfg_path, set_flag=False, verbose=False):
                                                          v['val']))))
     cfg['cfg_path'] = cfg_path
     return cfg
+
+
+def get_measurements_dir(dataset):
+    return dataset + "-samples.npy"

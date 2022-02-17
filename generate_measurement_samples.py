@@ -40,12 +40,10 @@ from cleverhans.utils import AccuracyReport
 from cleverhans.utils import set_log_level
 from cleverhans.utils_tf import model_train, model_eval
 from models.gan import MnistDefenseGAN, FmnistDefenseDefenseGAN, CelebADefenseGAN
-from utils.config import load_config
+from utils.config import load_config, get_measurements_dir
 from utils.gan_defense import model_eval_gan
 from utils.misc import ensure_dir
 from utils.network_builder import model_a, model_b, model_c, model_d, model_e, model_f
-from tflib.inception_score import get_inception_score
-import tflib.fid as fid
 
 ds_gan = {
     'mnist': MnistDefenseGAN,
@@ -55,7 +53,7 @@ ds_gan = {
 orig_data_paths = {k: 'data/cache/{}_pkl'.format(k) for k in ds_gan.keys()}
 
 
-def measure_gan(gan, rec_data_path=None, probe_size=10000, calc_real_data_is=True):
+def save_measurents(gan, rec_data_path=None, probe_size=10000, calc_real_data_is=True):
     """Based on MNIST tutorial from cleverhans.
     
     Args:
@@ -68,52 +66,21 @@ def measure_gan(gan, rec_data_path=None, probe_size=10000, calc_real_data_is=Tru
     set_log_level(logging.WARNING)
     sess = gan.sess
 
-    # FID init
-    stats_path = 'data/fid_stats_%s.npz' % FLAGS.dataset_name # training set statistics
-    inception_path = fid.check_or_download_inception(None) # download inception network
-
-    train_images, train_labels, test_images, test_labels = \
-        get_cached_gan_data(gan, False)
-
-    images = train_images[0:len(train_images)] * 255 # np.concatenate(train_images, test_images)
-    if FLAGS.dataset_name != 'celeba':
-        images = images.repeat(3).reshape(list(images.shape[:-1]) + [3])
-
-    # Inception Score for real data
-    is_orig_mean, is_orig_stddev = (-1, -1)
-    if calc_real_data_is:
-        is_orig_mean, is_orig_stddev = get_inception_score(images)
-        print('\n[#] Inception Score for original data: mean = %f, stddev = %f\n' % (is_orig_mean, is_orig_stddev))
-
     rng = np.random.RandomState([11, 24, 1990])
     tf.set_random_seed(11241990)
 
     # Calculate Inception Score for GAN
-    generated_images = np.load(get_measurements_dir(FLAGS.dataset_name))
-    is_gen_mean, is_gen_stddev = get_inception_score(generated_images)
-    print('\n[#] Inception Score for generated data: mean = %f, stddev = %f\n'% (is_gen_mean, is_gen_stddev))
+    gan.batch_size = probe_size
+    generated_images_tensor = gan.generator_fn()
+    generated_images = sess.run(generated_images_tensor)
 
-    # try to load precalculated training set statistics or calculate from scratch
-    fid.create_inception_graph(inception_path)  # load the graph into the current TF graph
-
-    try:
-        with np.load(stats_path) as f:
-            mu_real, sigma_real = f['mu'][:], f['sigma'][:]
-    except:
-        with tf.Session() as sess:
-            sess.run(tf.global_variables_initializer())
-            mu_real, sigma_real = fid.calculate_activation_statistics(images, sess, batch_size=100)
-            np.savez(stats_path, mu=mu_real, sigma=sigma_real), 
-
-    #fid.create_inception_graph(inception_path)  # load the graph into the current TF graph
-    with tf.Session() as sess:
-        sess.run(tf.global_variables_initializer())
-        mu_gen, sigma_gen = fid.calculate_activation_statistics(generated_images, sess, batch_size=100)
-
-    fid_value = fid.calculate_frechet_distance(mu_gen, sigma_gen, mu_real, sigma_real)
-    print("FID: %s" % fid_value)
+    if FLAGS.dataset_name == 'celeba':
+        generated_images = 255*((generated_images + 1) / 2)
+    else:
+        generated_images = 255 * generated_images
+        generated_images = generated_images.repeat(3).reshape(list(generated_images.shape[:-1]) + [3])
     
-    return is_gen_mean, is_gen_stddev, is_orig_mean, is_orig_stddev, fid_value
+    np.save(get_measurements_dir(FLAGS.dataset_name), generated_images)
 
 
 import re
@@ -146,32 +113,9 @@ def main(cfg, argv=None):
         gan.rec_lr = float(tr_lr)
         gan.rec_iters = int(tr_iters)
 
-    # Setting the results directory.
-    results_dir, result_file_name = _get_results_dir_filename(gan)
-
-    # Result file name. The counter ensures we are not overwriting the
-    # results.
-    counter = 0
-    temp_fp = str(counter) + '_' + result_file_name
-    results_dir = os.path.join(results_dir, FLAGS.results_dir)
-    temp_final_fp = os.path.join(results_dir, temp_fp)
-    while os.path.exists(temp_final_fp):
-        counter += 1
-        temp_fp = str(counter) + '_' + result_file_name
-        temp_final_fp = os.path.join(results_dir, temp_fp)
-    result_file_name = temp_fp
-    sub_result_path = os.path.join(results_dir, result_file_name)
-
     accuracies = measure_gan(
         gan, rec_data_path=FLAGS.rec_path, probe_size=FLAGS.probe_size,
         calc_real_data_is=FLAGS.calc_real_data_is)
-
-    ensure_dir(results_dir)
-
-    with open(sub_result_path, 'a') as f:
-        f.writelines([str(acc) + ' ' for acc in accuracies])
-        f.write('\n')
-        print('[*] saved accuracy in {}'.format(sub_result_path))
 
 
 def _get_results_dir_filename(gan):
