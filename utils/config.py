@@ -95,4 +95,5 @@ def load_config(cfg_path, set_flag=False, verbose=False):
 
 
 def get_measurements_dir(dataset):
-    return dataset + "-samples.npy"
+    filename = dataset + "-samples.npy"
+    return os.path.join("data", filename)

@@ -44,6 +44,7 @@ from utils.config import load_config, get_measurements_dir
 from utils.gan_defense import model_eval_gan
 from utils.misc import ensure_dir
 from utils.network_builder import model_a, model_b, model_c, model_d, model_e, model_f
+import math
 
 ds_gan = {
     'mnist': MnistDefenseGAN,
@@ -70,17 +71,24 @@ def save_measurents(gan, rec_data_path=None, probe_size=10000, calc_real_data_is
     tf.set_random_seed(11241990)
 
     # Calculate Inception Score for GAN
-    gan.batch_size = probe_size
-    generated_images_tensor = gan.generator_fn()
-    generated_images = sess.run(generated_images_tensor)
+    batch_size = 1000
+    n_batches = int(math.ceil(probe_size / batch_size))
+    gan.batch_size = batch_size
 
-    if FLAGS.dataset_name == 'celeba':
-        generated_images = 255*((generated_images + 1) / 2)
-    else:
-        generated_images = 255 * generated_images
-        generated_images = generated_images.repeat(3).reshape(list(generated_images.shape[:-1]) + [3])
+    generated_images = []
+    for i in range(n_batches):
+        print("Generating %d/%d..." % (i, n_batches))
+        generated_images_tensor = gan.generator_fn()
+        generated_images_batch = sess.run(generated_images_tensor)
+
+        if FLAGS.dataset_name == 'celeba':
+            generated_images_batch = 255*((generated_images_batch + 1) / 2)
+        else:
+            generated_images_batch = 255 * generated_images_batch
+            generated_images_batch = generated_images_batch.repeat(3).reshape(list(generated_images_batch.shape[:-1]) + [3])
+        generated_images.append(generated_images_batch)
     
-    np.save(get_measurements_dir(FLAGS.dataset_name), generated_images)
+    np.save(get_measurements_dir(FLAGS.dataset_name), np.array(generated_images))
 
 
 import re
@@ -113,7 +121,7 @@ def main(cfg, argv=None):
         gan.rec_lr = float(tr_lr)
         gan.rec_iters = int(tr_iters)
 
-    accuracies = measure_gan(
+    accuracies = save_measurents(
         gan, rec_data_path=FLAGS.rec_path, probe_size=FLAGS.probe_size,
         calc_real_data_is=FLAGS.calc_real_data_is)
 

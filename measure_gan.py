@@ -40,7 +40,7 @@ from cleverhans.utils import AccuracyReport
 from cleverhans.utils import set_log_level
 from cleverhans.utils_tf import model_train, model_eval
 from models.gan import MnistDefenseGAN, FmnistDefenseDefenseGAN, CelebADefenseGAN
-from utils.config import load_config
+from utils.config import load_config, get_measurements_dir
 from utils.gan_defense import model_eval_gan
 from utils.misc import ensure_dir
 from utils.network_builder import model_a, model_b, model_c, model_d, model_e, model_f

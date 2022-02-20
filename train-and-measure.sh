@@ -23,14 +23,18 @@ do
         mv debug/gans/$set-long-measure/* debug3/gans/$set/$i/
         mv debug/debug/gans/$set-long-measure/* debug3/debug/gans/$set/$i/
         echo "Running $i turn of training."
-        timeout 30m python train.py --cfg experiments/cfgs/gans/$set-long-measure.yml --is_train
+        # timeout 30m python train.py --cfg experiments/cfgs/gans/$set-long-measure.yml --is_train
         
-        if ["$set" = celeba ]
-        then
-            probe_size=20000
-        else
-            probe_size=50000
-        fi
+        # if ["$set" = celeba ]
+        # then
+        #     probe_size=20000
+        # else
+        #     probe_size=50000
+        # fi
+
+
+        probe_size=2000
+
 
         python generate_measurement_samples.py --cfg output/gans/$set-long-measure --results_dir train_and_measure_gan_$set --probe_size $probe_size --iter $i
         python measure_gan.py --cfg output/gans/$set-long-measure --results_dir train_and_measure_gan_$set --probe_size $probe_size --iter $i
