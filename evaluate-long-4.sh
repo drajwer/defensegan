@@ -1,7 +1,7 @@
 #!/bin/bash
 model=$1
 sets=(mnist fmnist celeba)
-attacks=(bpda-fgsm bpda-pgd bpda-mim bpda-bim) # deepfool lbfgs) bpda-fgsm bpda-pgd bpda-mim bpda-bim 
+attacks=(cw-trim) # deepfool lbfgs) bpda-fgsm bpda-pgd bpda-mim bpda-bim 
 defenses=(defense_gan)
 epses=(0.05 0.1 0.2 0.3)
 dateNow=$(date '+%Y%m%d%H%M')  

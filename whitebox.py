@@ -36,7 +36,7 @@ import tensorflow as tf
 
 from blackbox import dataset_gan_dict, get_cached_gan_data
 from cleverhans.attacks import CarliniWagnerL2, FastGradientMethod, MomentumIterativeMethod, DeepFool, LBFGS,  MadryEtAl, SPSA, BasicIterativeMethod
-from cleverhansbpda.attacks import BPDABasicIterativeMethod, BPDAFastGradientMethod, BPDAMomentumIterativeMethod, BPDAMadryEtAl
+from cleverhansbpda.attacks import TrimmedCarliniWagnerL2, BPDABasicIterativeMethod, BPDAFastGradientMethod, BPDAMomentumIterativeMethod, BPDAMadryEtAl
 from cleverhans.utils import AccuracyReport
 from cleverhans.utils import set_log_level
 from cleverhans.utils_tf import model_train, model_eval
@@ -227,6 +227,16 @@ def whitebox(gan, rec_data_path=None, batch_size=128, learning_rate=0.001,
                          'learning_rate': 10.0,
                          'batch_size': batch_size,
                          'initial_const': 100}
+    elif FLAGS.attack_type == 'cw-trim':
+        attack_obj = TrimmedCarliniWagnerL2(model, back='tf', sess=sess)
+        attack_iterations = 100
+        attack_params = {'binary_search_steps': 1,
+                         'max_iterations': attack_iterations,
+                         'learning_rate': 10.0,
+                         'batch_size': batch_size,
+                         'initial_const': 100,
+                         'eps': eps,
+                         'ord': np.inf}
     elif FLAGS.attack_type == 'mim':
         attack_obj = MomentumIterativeMethod(model, back='tf', sess=sess)
         attack_params = {'eps': eps, 'eps_iter': eps_iter, 'ord': np.inf, 'clip_min': min_val, 'clip_max': 1., 'nb_iter': FLAGS.nb_attack_iters}

@@ -75,7 +75,7 @@ def save_measurents(gan, rec_data_path=None, probe_size=10000, calc_real_data_is
     n_batches = int(math.ceil(probe_size / batch_size))
     gan.batch_size = batch_size
 
-    generated_images = []
+    batches = []
     for i in range(n_batches):
         print("Generating %d/%d..." % (i, n_batches))
         generated_images_tensor = gan.generator_fn()
@@ -86,9 +86,9 @@ def save_measurents(gan, rec_data_path=None, probe_size=10000, calc_real_data_is
         else:
             generated_images_batch = 255 * generated_images_batch
             generated_images_batch = generated_images_batch.repeat(3).reshape(list(generated_images_batch.shape[:-1]) + [3])
-        generated_images.append(generated_images_batch)
+        batches.append(generated_images_batch)
     
-    np.save(get_measurements_dir(FLAGS.dataset_name), np.array(generated_images))
+    np.save(get_measurements_dir(FLAGS.dataset_name), np.array(batches).reshape((-1,) +  generated_images_batch.shape[1:]))
 
 
 import re

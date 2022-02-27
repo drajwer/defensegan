@@ -709,7 +709,7 @@ class VirtualAdversarialMethod(Attack):
         return True
 
 
-class BPDACarliniWagnerL2(Attack):
+class TrimmedCarliniWagnerL2(Attack):
     """
     This attack was originally proposed by Carlini and Wagner. It is an
     iterative attack that finds adversarial examples on many defenses that
@@ -726,9 +726,9 @@ class BPDACarliniWagnerL2(Attack):
         Note: the model parameter should be an instance of the
         cleverhans.model.Model abstraction provided by CleverHans.
         """
-        assert isinstance(model, BPDAModelWrapper)
+        assert isinstance(model, Model)
 
-        super(BPDACarliniWagnerL2, self).__init__(model, back, sess, dtypestr)
+        super(TrimmedCarliniWagnerL2, self).__init__(model, back, sess, dtypestr)
 
         import tensorflow as tf
         self.feedable_kwargs = {'y': self.tf_dtype,
@@ -781,6 +781,8 @@ class BPDACarliniWagnerL2(Attack):
         """
         import tensorflow as tf
         from cleverhans.attacks_tf import CarliniWagnerL2 as CWL2
+        from cleverhans.utils_tf import clip_eta
+
         self.parse_params(**kwargs)
 
         labels, nb_classes = self.get_or_guess_labels(x, kwargs)
@@ -792,18 +794,22 @@ class BPDACarliniWagnerL2(Attack):
                       self.initial_const, self.clip_min, self.clip_max,
                       nb_classes, x.get_shape().as_list()[1:])
 
+
         def cw_wrap(x_val, y_val):
             return np.array(attack.attack(x_val, y_val), dtype=self.np_dtype)
         wrap = tf.py_func(cw_wrap, [x, labels], self.tf_dtype)
 
-        return wrap
+        eta = x - wrap
+        eta = clip_eta(eta, self.ord, self.eps)
+
+        return x + eta
 
     def parse_params(self, y=None, y_target=None, nb_classes=None,
                      batch_size=1, confidence=0,
                      learning_rate=5e-3,
                      binary_search_steps=5, max_iterations=1000,
                      abort_early=True, initial_const=1e-2,
-                     clip_min=0, clip_max=1):
+                     clip_min=0, clip_max=1, eps=0.1, ord=np.inf):
 
         # ignore the y and y_target argument
         if nb_classes is not None:
@@ -818,6 +824,8 @@ class BPDACarliniWagnerL2(Attack):
         self.initial_const = initial_const
         self.clip_min = clip_min
         self.clip_max = clip_max
+        self.eps = eps
+        self.ord = ord
 
 
 class ElasticNetMethod(Attack):
