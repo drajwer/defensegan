@@ -799,7 +799,8 @@ class TrimmedCarliniWagnerL2(Attack):
             return np.array(attack.attack(x_val, y_val), dtype=self.np_dtype)
         wrap = tf.py_func(cw_wrap, [x, labels], self.tf_dtype)
 
-        eta = x - wrap
+        eta = wrap - x
+        eta.set_shape(x.get_shape().as_list())
         eta = clip_eta(eta, self.ord, self.eps)
 
         return x + eta

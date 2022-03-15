@@ -484,6 +484,7 @@ if __name__ == '__main__':
     flags.DEFINE_integer('nb_attack_iters', 10, 'Number of iterations of attack constructions. Used in e.g. MIM')
     flags.DEFINE_float('lmbda', 0.1, 'Lambda from arxiv.org/abs/1602.02697.')
     flags.DEFINE_float('fgsm_eps', 0.3, 'FGSM epsilon.')
+    flags.DEFINE_float('fgsm_eps_tr', 0.3, 'FGSM adversarial training epsilon.')
     flags.DEFINE_string('rec_path', None, 'Path to reconstructions.')
     flags.DEFINE_integer('num_tests', -1, 'Number of test samples.')
     flags.DEFINE_integer('random_test_iter', -1,
