@@ -1,3 +1,10 @@
+# Defense against attacks on image classifiers using Generative Adversarial Networks
+
+This source code is a modified version of [the source code of Defense-GAN: Protecting Classifiers Against Adversarial Attacks Using Generative Models](https://github.com/kabkabm/defensegan).
+The code is adjusted to the needs of the experiments performed in the thesis.
+
+The original README file is below.
+
 # Defense-GAN: Protecting Classifiers Against Adversarial Attacks Using Generative Models
 
 Pouya Samangouei*, Maya Kabkab*, Rama Chellappa
